@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SshManager.App.Views.UfwRuleDialog"
+        Title="防火墙规则" Width="470" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <StackPanel Margin="22" Spacing="12">
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <Border Background="{DynamicResource C_Sel}" CornerRadius="8" Width="38" Height="38">
+        <Path Classes="icon c-acc" Data="{StaticResource IcShield}" Width="20" Height="20"
+              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock x:Name="TitleText" Classes="t-title" Text="修改防火墙规则"/>
+        <TextBlock x:Name="SubText" Classes="t-dim" Text="修改将先删除原规则，再按新配置添加"/>
+      </StackPanel>
+    </StackPanel>
+
+    <Grid ColumnDefinitions="90,*,20,90,*" RowDefinitions="Auto,12,Auto,12,Auto" ColumnSpacing="10">
+      <TextBlock Text="动作" Classes="t-dim" VerticalAlignment="Center"/>
+      <ComboBox Grid.Column="1" x:Name="ActionBox" Height="32">
+        <ComboBoxItem Content="允许（allow）"/>
+        <ComboBoxItem Content="拒绝（deny）"/>
+        <ComboBoxItem Content="限制（limit）"/>
+      </ComboBox>
+      <TextBlock Grid.Column="3" Text="方向" Classes="t-dim" VerticalAlignment="Center"/>
+      <ComboBox Grid.Column="4" x:Name="DirectionBox" Height="32">
+        <ComboBoxItem Content="入站"/>
+        <ComboBoxItem Content="出站"/>
+      </ComboBox>
+
+      <TextBlock Grid.Row="2" Text="端口 / 范围" Classes="t-dim" VerticalAlignment="Center"/>
+      <TextBox Grid.Row="2" Grid.Column="1" x:Name="PortBox" Watermark="22 / 8080 / 8000:8010"/>
+      <TextBlock Grid.Row="2" Grid.Column="3" Text="协议" Classes="t-dim" VerticalAlignment="Center"/>
+      <ComboBox Grid.Row="2" Grid.Column="4" x:Name="ProtoBox" Height="32">
+        <ComboBoxItem Content="任意"/>
+        <ComboBoxItem Content="TCP"/>
+        <ComboBoxItem Content="UDP"/>
+      </ComboBox>
+
+      <TextBlock Grid.Row="4" Text="来源 IP / 网段" Classes="t-dim" VerticalAlignment="Center"/>
+      <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="4" x:Name="FromBox"
+               Watermark="如 192.168.1.0/24（留空 = 任意来源）"/>
+    </Grid>
+
+    <TextBlock x:Name="PreviewText" Classes="t-dim" FontSize="11.5" TextWrapping="Wrap"
+               FontFamily="{StaticResource MonoFont}"/>
+
+    <TextBlock x:Name="ErrorText" TextWrapping="Wrap" Foreground="{DynamicResource C_Danger}"
+               FontSize="12.5"/>
+
+    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,4,0,0">
+      <Button Classes="ghost" Content="取消" MinWidth="86" Click="OnCancel"/>
+      <Button Classes="primary" x:Name="OkButton" Content="保存修改" MinWidth="110" Click="OnOk"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

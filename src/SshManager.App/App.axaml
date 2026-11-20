@@ -1,0 +1,343 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SshManager.App.App"
+             RequestedThemeVariant="Dark">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://SshManager/Assets/Icons.axaml"/>
+      </ResourceDictionary.MergedDictionaries>
+
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="C_Bg" Color="#0f1116"/>
+          <SolidColorBrush x:Key="C_Side" Color="#13161d"/>
+          <SolidColorBrush x:Key="C_Card" Color="#171a22"/>
+          <SolidColorBrush x:Key="C_Card2" Color="#1c2029"/>
+          <SolidColorBrush x:Key="C_Border" Color="#262b36"/>
+          <SolidColorBrush x:Key="C_Hover" Color="#232936"/>
+          <SolidColorBrush x:Key="C_Press" Color="#2a3140"/>
+          <SolidColorBrush x:Key="C_Fg" Color="#e8ebf2"/>
+          <SolidColorBrush x:Key="C_Fg2" Color="#98a1b3"/>
+          <SolidColorBrush x:Key="C_Fg3" Color="#6b7386"/>
+          <SolidColorBrush x:Key="C_Acc" Color="#10b981"/>
+          <SolidColorBrush x:Key="C_AccHi" Color="#34d399"/>
+          <SolidColorBrush x:Key="C_AccLo" Color="#059669"/>
+          <SolidColorBrush x:Key="C_AccFg" Color="#04251a"/>
+          <SolidColorBrush x:Key="C_Sel" Color="#173029"/>
+          <SolidColorBrush x:Key="C_Danger" Color="#f43f5e"/>
+          <SolidColorBrush x:Key="C_Warn" Color="#f59e0b"/>
+          <SolidColorBrush x:Key="C_Info" Color="#2dd4bf"/>
+          <SolidColorBrush x:Key="C_TermBg" Color="#0c0f14"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="C_Bg" Color="#f4f5f8"/>
+          <SolidColorBrush x:Key="C_Side" Color="#eceef3"/>
+          <SolidColorBrush x:Key="C_Card" Color="#ffffff"/>
+          <SolidColorBrush x:Key="C_Card2" Color="#f1f3f7"/>
+          <SolidColorBrush x:Key="C_Border" Color="#dfe3ea"/>
+          <SolidColorBrush x:Key="C_Hover" Color="#e8ecf2"/>
+          <SolidColorBrush x:Key="C_Press" Color="#dbe1ea"/>
+          <SolidColorBrush x:Key="C_Fg" Color="#1c2333"/>
+          <SolidColorBrush x:Key="C_Fg2" Color="#5b6577"/>
+          <SolidColorBrush x:Key="C_Fg3" Color="#8b93a5"/>
+          <SolidColorBrush x:Key="C_Acc" Color="#059669"/>
+          <SolidColorBrush x:Key="C_AccHi" Color="#10b981"/>
+          <SolidColorBrush x:Key="C_AccLo" Color="#047857"/>
+          <SolidColorBrush x:Key="C_AccFg" Color="#ffffff"/>
+          <SolidColorBrush x:Key="C_Sel" Color="#d7f2e8"/>
+          <SolidColorBrush x:Key="C_Danger" Color="#e11d48"/>
+          <SolidColorBrush x:Key="C_Warn" Color="#d97706"/>
+          <SolidColorBrush x:Key="C_Info" Color="#0d9488"/>
+          <SolidColorBrush x:Key="C_TermBg" Color="#fafbfc"/>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <FontFamily x:Key="MonoFont">Consolas, Courier New, DejaVu Sans Mono, 'Sarasa Mono SC', monospace</FontFamily>
+      <FontFamily x:Key="UiFont">Inter, 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'PingFang SC', sans-serif</FontFamily>
+
+      <!-- Ant Design 风格开关（终端模式切换）：44×22 轨道 + 18px 圆形 thumb，选中态滑动 -->
+      <ControlTheme x:Key="AntdSwitchTheme" TargetType="ToggleButton">
+        <Setter Property="Width" Value="44"/>
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Background" Value="{DynamicResource C_Fg3}"/>
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Name="PART_Track" Width="44" Height="22" CornerRadius="11"
+                    Background="{TemplateBinding Background}">
+              <Border Name="PART_Thumb" Width="18" Height="18" CornerRadius="9"
+                      Background="White" HorizontalAlignment="Left" Margin="2,2,0,2">
+                <Border.Transitions>
+                  <Transitions>
+                    <ThicknessTransition Property="Margin" Duration="0:0:0.18"/>
+                  </Transitions>
+                </Border.Transitions>
+              </Border>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+        <Style Selector="^:checked">
+          <Setter Property="Background" Value="{DynamicResource C_Acc}"/>
+        </Style>
+        <Style Selector="^:checked /template/ Border#PART_Thumb">
+          <Setter Property="Margin" Value="24,2,0,2"/>
+        </Style>
+        <Style Selector="^:disabled">
+          <Setter Property="Opacity" Value="0.45"/>
+        </Style>
+      </ControlTheme>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+
+    <!-- DataGrid 单元格与表头左对齐（Fluent 主题单元格默认无边距，首列会贴边） -->
+    <Style Selector="DataGridCell">
+      <Setter Property="Padding" Value="12,0,0,0"/>
+    </Style>
+
+    <!-- 全局字体（含中文字体回退） -->
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+
+    <!-- 描边图标 -->
+    <Style Selector="Path.icon">
+      <Setter Property="Stretch" Value="Uniform"/>
+      <Setter Property="StrokeThickness" Value="1.7"/>
+      <Setter Property="StrokeJoin" Value="Round"/>
+      <Setter Property="StrokeLineCap" Value="Round"/>
+      <Setter Property="Fill" Value="Transparent"/>
+      <Setter Property="Width" Value="16"/>
+      <Setter Property="Height" Value="16"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Path.icon.c-fg"><Setter Property="Stroke" Value="{DynamicResource C_Fg}"/></Style>
+    <Style Selector="Path.icon.c-dim"><Setter Property="Stroke" Value="{DynamicResource C_Fg2}"/></Style>
+    <Style Selector="Path.icon.c-acc"><Setter Property="Stroke" Value="{DynamicResource C_Acc}"/></Style>
+    <Style Selector="Path.icon.c-danger"><Setter Property="Stroke" Value="{DynamicResource C_Danger}"/></Style>
+    <Style Selector="Path.icon.c-warn"><Setter Property="Stroke" Value="{DynamicResource C_Warn}"/></Style>
+    <Style Selector="Path.icon.c-info"><Setter Property="Stroke" Value="{DynamicResource C_Info}"/></Style>
+
+    <!-- 按钮内容整体居中（上下、左右）：Fluent 默认 Stretch 会让文字靠左上，
+         固定高度/宽度的按钮尤为明显（如“删除”“保存”“关闭”、对话框按钮） -->
+    <Style Selector="Button, ToggleButton">
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+
+    <!-- 按钮 -->
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource C_Acc}"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_AccFg}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="18,8"/>
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource C_AccHi}"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_AccFg}"/>
+    </Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource C_AccLo}"/>
+    </Style>
+
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="{DynamicResource C_Danger}"/>
+      <Setter Property="Foreground" Value="#ffffff"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="18,8"/>
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#fb7185"/>
+    </Style>
+
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg}"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="14,7"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource C_Border}"/>
+    </Style>
+    <Style Selector="Button.ghost:pointerover">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+    </Style>
+    <Style Selector="Button.ghost:pressed">
+      <Setter Property="Background" Value="{DynamicResource C_Press}"/>
+    </Style>
+
+    <Style Selector="Button.tool">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="CornerRadius" Value="7"/>
+      <Setter Property="Padding" Value="8"/>
+      <Setter Property="Width" Value="34"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="Button.tool:pointerover">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+    </Style>
+    <Style Selector="Button.tool:pressed">
+      <Setter Property="Background" Value="{DynamicResource C_Press}"/>
+    </Style>
+    <Style Selector="Button.tool:disabled">
+      <Setter Property="Opacity" Value="0.4"/>
+    </Style>
+
+    <Style Selector="Button.toolmini">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Padding" Value="5"/>
+      <Setter Property="Width" Value="26"/>
+      <Setter Property="Height" Value="26"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="MinWidth" Value="0"/>
+    </Style>
+    <Style Selector="Button.toolmini:pointerover">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+    </Style>
+    <Style Selector="Button.toolmini:pressed">
+      <Setter Property="Background" Value="{DynamicResource C_Press}"/>
+    </Style>
+
+    <!-- 顶部分页按钮 -->
+    <Style Selector="ToggleButton.tab">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg2}"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="14,7"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="FontSize" Value="13.5"/>
+    </Style>
+    <Style Selector="ToggleButton.tab:pointerover">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+    </Style>
+    <Style Selector="ToggleButton.tab:checked">
+      <Setter Property="Background" Value="{DynamicResource C_Sel}"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Acc}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 文件管理内部标签（次级标签条：主Tab=文件浏览 + 编辑标签） -->
+    <Style Selector="ToggleButton.itab">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg2}"/>
+      <Setter Property="CornerRadius" Value="7"/>
+      <Setter Property="Padding" Value="12,5"/>
+      <Setter Property="Height" Value="30"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="FontSize" Value="12.5"/>
+    </Style>
+    <Style Selector="ToggleButton.itab:pointerover">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+    </Style>
+    <Style Selector="ToggleButton.itab:checked">
+      <Setter Property="Background" Value="{DynamicResource C_Sel}"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Acc}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 卡片 -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource C_Card}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource C_Border}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="16"/>
+    </Style>
+    <Style Selector="Border.card.sub">
+      <Setter Property="Background" Value="{DynamicResource C_Card2}"/>
+    </Style>
+
+    <!-- 小徽章 -->
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+      <Setter Property="CornerRadius" Value="5"/>
+      <Setter Property="Padding" Value="6,2"/>
+    </Style>
+
+    <!-- 文本 -->
+    <Style Selector="TextBlock.t-title">
+      <Setter Property="FontSize" Value="18"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg}"/>
+    </Style>
+    <Style Selector="TextBlock.t-h2">
+      <Setter Property="FontSize" Value="14.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg}"/>
+    </Style>
+    <Style Selector="TextBlock.t-dim">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg2}"/>
+    </Style>
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg}"/>
+    </Style>
+
+    <Style Selector="ProgressBar.slim">
+      <Setter Property="Height" Value="8"/>
+      <Setter Property="CornerRadius" Value="4"/>
+    </Style>
+
+    <!-- 编辑器文本框：内部出现滚动条（内容超出可视区域后可拖动查看） -->
+    <Style Selector="TextBox.editor">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="LineHeight" Value="19"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="BorderBrush" Value="Transparent"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Padding" Value="16,10,16,10"/>
+      <Setter Property="AcceptsReturn" Value="True"/>
+      <Setter Property="AcceptsTab" Value="False"/>
+      <Setter Property="VerticalContentAlignment" Value="Top"/>
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+    </Style>
+
+    <!-- 传输抽屉拖拽条 -->
+    <Style Selector="Border.grip:pointerover">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+    </Style>
+    <Style Selector="Border.grip">
+      <Setter Property="CornerRadius" Value="2"/>
+    </Style>
+
+    <!-- 服务器列表 -->
+    <Style Selector="ListBox.profiles">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="ListBox.profiles ListBoxItem">
+      <Setter Property="Padding" Value="10,8"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+    <Style Selector="ListBox.profiles ListBoxItem:pointerover">
+      <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+    </Style>
+    <Style Selector="ListBox.profiles ListBoxItem:selected">
+      <Setter Property="Background" Value="{DynamicResource C_Sel}"/>
+    </Style>
+  </Application.Styles>
+</Application>

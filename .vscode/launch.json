@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "coreclr",
+      "request": "launch",
+      "name": "SshManager (Avalonia)",
+      "program": "${workspaceFolder}/src/SshManager.App/bin/Debug/net8.0/SshManager.dll",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "preLaunchTask": "build",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  ]
+}

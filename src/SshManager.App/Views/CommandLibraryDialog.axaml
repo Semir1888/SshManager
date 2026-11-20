@@ -1,0 +1,75 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:SshManager.App.Services"
+        x:Class="SshManager.App.Views.CommandLibraryDialog"
+        Title="命令库 — 常用命令速查"
+        Width="760" Height="540" MinWidth="620" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}"
+        CanResize="True">
+
+  <Window.DataTemplates>
+    <DataTemplate x:DataType="services:QuickCommand">
+      <Grid ColumnDefinitions="190,*,Auto,Auto" ColumnSpacing="10" Background="Transparent"
+            ToolTip.Tip="{Binding Command}">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Path Classes="icon c-dim" Data="{StaticResource IcTerminal}" Width="13" Height="13"/>
+          <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+        </StackPanel>
+        <TextBlock Grid.Column="1" Text="{Binding Command}" FontFamily="{StaticResource MonoFont}"
+                   FontSize="12" Foreground="{DynamicResource C_Fg2}" TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center"/>
+        <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center" IsVisible="{Binding Danger}">
+          <TextBlock Text="危险" FontSize="10.5" Foreground="{DynamicResource C_Danger}"/>
+        </Border>
+        <Border Grid.Column="3" Classes="badge" VerticalAlignment="Center" IsVisible="{Binding NeedEdit}">
+          <TextBlock Text="需编辑" FontSize="10.5" Foreground="{DynamicResource C_Warn}"/>
+        </Border>
+      </Grid>
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <DockPanel Margin="16">
+    <!-- 底部按钮区 -->
+    <Border DockPanel.Dock="Bottom" Margin="0,12,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="10">
+        <TextBlock Classes="t-dim" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"
+                   Text="双击条目＝填入输入框 · “危险”命令执行前会二次确认 · “需编辑”命令含占位符，只会填入不会执行"/>
+        <Button Grid.Column="1" Classes="ghost" MinWidth="108" Click="OnInsert" Content="填入输入框"/>
+        <Button Grid.Column="2" Classes="primary" MinWidth="108" Click="OnRun" Content="直接执行"/>
+        <Button Grid.Column="3" Classes="ghost" MinWidth="88" Click="OnClose" Content="关闭"/>
+      </Grid>
+    </Border>
+
+    <!-- 顶部筛选区 -->
+    <Border DockPanel.Dock="Top">
+      <Grid ColumnDefinitions="*,180,Auto" ColumnSpacing="10">
+        <TextBox x:Name="SearchBox" Watermark="搜索：中文名称或命令关键字…"
+                 TextChanged="OnSearchChanged" KeyDown="OnSearchKeyDown"/>
+        <ComboBox Grid.Column="1" x:Name="CategoryBox"
+                  SelectionChanged="OnCategoryChanged" HorizontalAlignment="Stretch"/>
+        <TextBlock x:Name="CountText" Grid.Column="2" Classes="t-dim" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+
+    <!-- 命令列表 -->
+    <Border Classes="card" Margin="0,12,0,0" Padding="6" ClipToBounds="True">
+      <ListBox x:Name="List" Background="Transparent" BorderThickness="0" Padding="2"
+               DoubleTapped="OnItemDoubleTapped">
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="CornerRadius" Value="7"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+          </Style>
+          <Style Selector="ListBoxItem:pointerover">
+            <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+          </Style>
+          <Style Selector="ListBoxItem:selected">
+            <Setter Property="Background" Value="{DynamicResource C_Sel}"/>
+          </Style>
+        </ListBox.Styles>
+      </ListBox>
+    </Border>
+  </DockPanel>
+</Window>

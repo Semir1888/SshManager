@@ -1,0 +1,9 @@
+bin/
+obj/
+publish/
+build-verify/
+.vs/
+.idea/
+*.user
+*.suo
+*.log

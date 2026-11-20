@@ -1,0 +1,333 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SshManager.App.ViewModels"
+        xmlns:v="using:SshManager.App.Views"
+        xmlns:services="using:SshManager.App.Services"
+        x:Class="SshManager.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="SshManager — Linux 远程管理" Width="1120" Height="620"
+        MinWidth="960" MinHeight="540" WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource C_Bg}">
+
+  <Window.DataTemplates>
+    <DataTemplate x:DataType="vm:OverviewViewModel">
+      <v:OverviewView/>
+    </DataTemplate>
+    <DataTemplate x:DataType="vm:FileManagerViewModel">
+      <v:FileManagerView/>
+    </DataTemplate>
+    <DataTemplate x:DataType="vm:AppCenterViewModel">
+      <v:AppCenterView/>
+    </DataTemplate>
+    <DataTemplate x:DataType="vm:DockerViewModel">
+      <v:DockerView/>
+    </DataTemplate>
+    <DataTemplate x:DataType="vm:NetworkViewModel">
+      <v:NetworkView/>
+    </DataTemplate>
+    <DataTemplate x:DataType="vm:ConsoleViewModel">
+      <v:ConsoleView/>
+    </DataTemplate>
+
+    <DataTemplate x:DataType="vm:ProfileItemViewModel">
+      <Grid ColumnDefinitions="3,*,Auto" ColumnSpacing="8">
+        <!-- 当前连接的服务器：左侧绿色竖条（未连接时保留 3px 占位，避免文字跳动） -->
+        <Border Width="3" CornerRadius="2" Background="{DynamicResource C_Acc}"
+                IsVisible="{Binding IsCurrent}" VerticalAlignment="Stretch"/>
+        <StackPanel Grid.Column="1" Spacing="2">
+          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"
+                     TextTrimming="CharacterEllipsis"/>
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+            <TextBlock Text="{Binding Host}" Classes="t-dim" FontSize="11.5"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            <Border Grid.Column="1" Classes="badge" VerticalAlignment="Center"
+                    IsVisible="{Binding IsCurrent}" ToolTip.Tip="当前已连接的服务器">
+              <TextBlock Text="已连接" FontSize="10" Foreground="{DynamicResource C_Acc}"/>
+            </Border>
+          </Grid>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+          <Button Classes="toolmini" Command="{Binding EditCommand}" ToolTip.Tip="编辑">
+            <Path Classes="icon c-dim" Data="{StaticResource IcPencil}" Width="13" Height="13"/>
+          </Button>
+          <Button Classes="toolmini" Command="{Binding RemoveCommand}" ToolTip.Tip="删除">
+            <Path Classes="icon c-dim" Data="{StaticResource IcTrash}" Width="13" Height="13"/>
+          </Button>
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:DataType="services:TransferItem">
+      <Border BorderBrush="{DynamicResource C_Border}" BorderThickness="0,0,0,1" Padding="4,8">
+        <Grid ColumnDefinitions="Auto,*,150,215,70,Auto" ColumnSpacing="12">
+          <Path Classes="icon c-acc" Data="{StaticResource IcUpload}" Width="15" Height="15"
+                IsVisible="{Binding IsUpload}"/>
+          <Path Classes="icon c-info" Data="{StaticResource IcDownload}" Width="15" Height="15"
+                IsVisible="{Binding !IsUpload}"/>
+          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" FontSize="12.5"/>
+            <TextBlock Text="{Binding Detail}" Classes="t-dim" FontSize="10.5"
+                       TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+          <ProgressBar Grid.Column="2" Classes="slim" Value="{Binding Percent}" Maximum="100"
+                       VerticalAlignment="Center"/>
+          <TextBlock Grid.Column="3" Text="{Binding ProgressText}" Classes="t-dim" FontSize="11"
+                     VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}"/>
+          <TextBlock Grid.Column="4" Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"
+                     FontSize="12" VerticalAlignment="Center"/>
+          <Button Grid.Column="5" Classes="toolmini" Command="{Binding CancelItCommand}"
+                  IsVisible="{Binding CanCancel}" ToolTip.Tip="取消">
+            <Path Classes="icon c-danger" Data="{StaticResource IcX}" Width="13" Height="13"/>
+          </Button>
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <DockPanel>
+    <!-- ══════════ 状态栏（始终位于窗口最底部，全宽） ══════════ -->
+    <Border DockPanel.Dock="Bottom" Background="{DynamicResource C_Side}"
+            BorderBrush="{DynamicResource C_Border}" BorderThickness="0,1,0,0"
+            Padding="16,7">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="10">
+        <Ellipse Width="8" Height="8" Fill="#f43f5e" VerticalAlignment="Center"
+                 IsVisible="{Binding !ConnDotOn}"/>
+        <Ellipse Grid.Column="1" Width="8" Height="8" Fill="#10b981" VerticalAlignment="Center"
+                 IsVisible="{Binding ConnDotOn}"/>
+        <TextBlock Grid.Column="2" Text="{Binding StateText}" FontSize="12"
+                   Foreground="{DynamicResource C_Fg2}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="3" Text="{Binding HostText}" FontSize="12"
+                   Foreground="{DynamicResource C_Fg3}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="4" Text="{Binding StatusMessage}" FontSize="12"
+                   Foreground="{Binding StatusBrush}" VerticalAlignment="Center"
+                   HorizontalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        <Button Grid.Column="5" Classes="ghost" Command="{Binding ToggleTransfersCommand}"
+                Height="28" Padding="12,4" FontSize="12">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Path Classes="icon c-dim" Data="{StaticResource IcDownload}" Width="14" Height="14"/>
+            <TextBlock Text="{Binding TransfersText}"/>
+          </StackPanel>
+        </Button>
+        <TextBlock Grid.Column="6" Text="{x:Static vm:MainWindowViewModel.Version}"
+                   FontSize="11.5" Foreground="{DynamicResource C_Fg3}" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+
+    <!-- ══════════ 左侧栏（可收起，状态记忆在 ui.json） ══════════ -->
+    <Border DockPanel.Dock="Left" Width="{Binding SidebarWidth}" Background="{DynamicResource C_Side}"
+            BorderBrush="{DynamicResource C_Border}" BorderThickness="0,0,1,0" ClipToBounds="True">
+      <DockPanel>
+        <!-- 展开态主体：服务器列表填满剩余空间（超出自动滚动） -->
+        <DockPanel Margin="14,16,14,12" IsVisible="{Binding !SidebarCollapsed}">
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <Image Source="avares://SshManager/Assets/app.png" Width="34" Height="34"
+                   VerticalAlignment="Center" ToolTip.Tip="SshManager"/>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Text="SshManager" FontWeight="Bold" FontSize="14.5"/>
+              <TextBlock Text="Linux 远程管理" Classes="t-dim" FontSize="11"/>
+            </StackPanel>
+            <Button Grid.Column="2" Classes="tool" Width="28" Height="28" Padding="4"
+                    Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="收起侧栏（状态会被记住）">
+              <Path Classes="icon c-dim" Data="{StaticResource IcChevronLeft}" Width="14" Height="14"/>
+            </Button>
+          </Grid>
+
+          <!-- 新建连接 + 断开 / 主题（图标按钮，悬停有提示） -->
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6"
+                Margin="0,14,0,0">
+            <Button Classes="primary" Command="{Binding NewConnectionCommand}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Path Stretch="Uniform" Data="{StaticResource IcPlus}" Stroke="{DynamicResource C_AccFg}"
+                      StrokeThickness="2" StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center"
+                      Fill="Transparent" Width="14" Height="14"/>
+                <TextBlock Text="新建连接" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="1" Classes="tool" Width="36" Height="36"
+                    Command="{Binding DisconnectCommand}" ToolTip.Tip="断开连接"
+                    IsVisible="{Binding IsConnected}">
+              <Path Classes="icon c-danger" Data="{StaticResource IcPower}" Width="16" Height="16"/>
+            </Button>
+            <Button Grid.Column="2" Classes="tool" Width="36" Height="36"
+                    Command="{Binding ToggleThemeCommand}" ToolTip.Tip="切换深色 / 浅色主题">
+              <Panel>
+                <Path Classes="icon c-warn" Data="{StaticResource IcSun}" Width="16" Height="16"
+                      IsVisible="{Binding !IsDark}"/>
+                <Path Classes="icon c-acc" Data="{StaticResource IcMoon}" Width="16" Height="16"
+                      IsVisible="{Binding IsDark}"/>
+              </Panel>
+            </Button>
+          </Grid>
+
+          <TextBlock DockPanel.Dock="Top" Classes="t-dim" Text="服务器" Margin="2,14,0,6"/>
+          <TextBlock DockPanel.Dock="Bottom" Classes="t-dim" Text="双击列表项可快速连接"
+                     FontSize="11" Margin="2,6,0,0"/>
+          <ListBox Classes="profiles" ItemsSource="{Binding Profiles}"
+                   DoubleTapped="OnProfileDoubleTapped">
+            <ListBox.Styles>
+              <Style Selector="ToolTip">
+                <Setter Property="Background" Value="{DynamicResource C_Card}"/>
+                <Setter Property="Foreground" Value="{DynamicResource C_Fg}"/>
+              </Style>
+            </ListBox.Styles>
+          </ListBox>
+        </DockPanel>
+
+        <!-- 收起态主体（窄栏：图标纵向排列） -->
+        <StackPanel Margin="0,16,0,10" Spacing="10" HorizontalAlignment="Center"
+                    IsVisible="{Binding SidebarCollapsed}">
+          <Image Source="avares://SshManager/Assets/app.png" Width="34" Height="34"
+                 ToolTip.Tip="SshManager"/>
+          <Button Classes="tool" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="展开侧栏">
+            <Path Classes="icon c-dim" Data="{StaticResource IcChevronRight}" Width="15" Height="15"/>
+          </Button>
+          <Button Classes="tool" Command="{Binding NewConnectionCommand}" ToolTip.Tip="新建连接">
+            <Path Stretch="Uniform" Data="{StaticResource IcPlus}" Stroke="{DynamicResource C_Acc}" VerticalAlignment="Center"
+                  StrokeThickness="2" StrokeJoin="Round" StrokeLineCap="Round"
+                  Fill="Transparent" Width="15" Height="15"/>
+          </Button>
+          <Button Classes="tool" Command="{Binding DisconnectCommand}" ToolTip.Tip="断开连接"
+                  IsVisible="{Binding IsConnected}">
+            <Path Classes="icon c-danger" Data="{StaticResource IcPower}" Width="15" Height="15"/>
+          </Button>
+          <Button Classes="tool" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="切换深色 / 浅色主题">
+            <Panel>
+              <Path Classes="icon c-warn" Data="{StaticResource IcSun}" Width="15" Height="15"
+                    IsVisible="{Binding !IsDark}"/>
+              <Path Classes="icon c-acc" Data="{StaticResource IcMoon}" Width="15" Height="15"
+                    IsVisible="{Binding IsDark}"/>
+            </Panel>
+          </Button>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- ══════════ 主区域：上方内容 + 可拖拽调节高度的传输抽屉 ══════════ -->
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <Grid Grid.Row="0">
+        <!-- 未连接欢迎页 -->
+        <StackPanel IsVisible="{Binding !IsConnected}" HorizontalAlignment="Center"
+                    VerticalAlignment="Center" Spacing="22" Width="480">
+          <Border Classes="card" Padding="36,32">
+            <StackPanel Spacing="16" HorizontalAlignment="Center">
+              <Image Source="avares://SshManager/Assets/app.png" Width="64" Height="64"
+                     HorizontalAlignment="Center" ToolTip.Tip="SshManager"/>
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <TextBlock Classes="t-title" Text="连接到你的 Linux 服务器" HorizontalAlignment="Center"/>
+                <TextBlock Classes="t-dim" TextWrapping="Wrap" TextAlignment="Center"
+                           Text="支持密码 / 私钥登录，连接后可以管理文件、查看与卸载应用、执行任意命令。服务器端只需开启 SSH（默认 22 端口）。"
+                           LineHeight="20"/>
+              </StackPanel>
+              <Button Classes="primary" Command="{Binding NewConnectionCommand}"
+                      HorizontalAlignment="Center" MinWidth="180">
+                <TextBlock Text="新建连接"/>
+              </Button>
+              <TextBlock Classes="t-dim" Text="或在左侧选择已保存的服务器" FontSize="11.5"
+                         HorizontalAlignment="Center"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- 已连接：标签页 -->
+        <DockPanel IsVisible="{Binding IsConnected}">
+          <Border DockPanel.Dock="Top" Padding="20,14,20,10" VerticalAlignment="Top">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+              <ToggleButton Classes="tab" IsChecked="{Binding IsTabOverview, Mode=OneWay}"
+                            Command="{Binding SelectTabCommand}" CommandParameter="overview">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcActivity}" Width="15" Height="15"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="系统概览" VerticalAlignment="Center"/>
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tab" IsChecked="{Binding IsTabFiles, Mode=OneWay}"
+                            Command="{Binding SelectTabCommand}" CommandParameter="files">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcFolder}" Width="15" Height="15"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="文件管理" VerticalAlignment="Center"/>
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tab" IsChecked="{Binding IsTabApps, Mode=OneWay}"
+                            Command="{Binding SelectTabCommand}" CommandParameter="apps">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcPackage}" Width="15" Height="15"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="应用中心" VerticalAlignment="Center"/>
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tab" IsChecked="{Binding IsTabDocker, Mode=OneWay}"
+                            Command="{Binding SelectTabCommand}" CommandParameter="docker">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcDocker}" Width="15" Height="15"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="Docker" VerticalAlignment="Center"/>
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tab" IsChecked="{Binding IsTabNetwork, Mode=OneWay}"
+                            Command="{Binding SelectTabCommand}" CommandParameter="network">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcGlobe}" Width="15" Height="15"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="网络设置" VerticalAlignment="Center"/>
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tab" IsChecked="{Binding IsTabConsole, Mode=OneWay}"
+                            Command="{Binding SelectTabCommand}" CommandParameter="console">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcTerminal}" Width="15" Height="15"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="终端" VerticalAlignment="Center"/>
+                </StackPanel>
+              </ToggleButton>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+          <ContentControl Content="{Binding CurrentView}" Margin="20,8,20,14"/>
+        </DockPanel>
+      </Grid>
+
+      <!-- 传输抽屉高度拖拽条 -->
+      <Border x:Name="TransferGrip" Grid.Row="1" Classes="grip" Height="8" Background="Transparent"
+              Cursor="SizeNorthSouth" IsVisible="{Binding TransfersOpen}"
+              PointerPressed="OnTransferGripPressed" PointerMoved="OnTransferGripMoved"
+              PointerReleased="OnTransferGripReleased" ToolTip.Tip="拖动调节传输队列高度">
+        <Border Width="44" Height="3" CornerRadius="2" VerticalAlignment="Center"
+                HorizontalAlignment="Center" Background="{DynamicResource C_Border}"/>
+      </Border>
+
+      <!-- 传输抽屉（只占主区域，不挤压左侧服务器列表；高度可拖拽调节） -->
+      <Border Grid.Row="2" IsVisible="{Binding TransfersOpen}" Height="{Binding TransfersHeight}"
+              Background="{DynamicResource C_Bg}" BorderBrush="{DynamicResource C_Border}"
+              BorderThickness="0,1,0,0" ClipToBounds="True">
+        <DockPanel>
+          <Border DockPanel.Dock="Top" Padding="14,8,14,8">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <TextBlock Classes="t-h2" Text="传输队列"/>
+                <TextBlock Classes="t-dim" Text="按顺序执行 · 文件夹自动递归"/>
+              </StackPanel>
+              <Button Grid.Column="1" Classes="ghost" Height="28" Padding="12,4" FontSize="12"
+                      Content="清除已完成" Command="{Binding ClearFinishedCommand}"/>
+              <Button Grid.Column="2" Classes="tool" Command="{Binding ToggleTransfersCommand}"
+                      ToolTip.Tip="收起">
+                <Path Classes="icon c-dim" Data="{StaticResource IcChevronDown}"/>
+              </Button>
+            </Grid>
+          </Border>
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Transfers.Items}" Margin="10,0"/>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>

@@ -1,0 +1,160 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             x:Class="SshManager.App.Views.AppCenterView"
+             x:DataType="vm:AppCenterViewModel">
+  <UserControl.Resources>
+    <ContextMenu x:Key="AppMenu" x:DataType="vm:AppEntryViewModel">
+      <MenuItem Header="卸载" Command="{Binding UninstallCommand}" Foreground="#f43f5e">
+        <MenuItem.Icon><Path Classes="icon c-danger" Data="{StaticResource IcTrash}" Width="14" Height="14"/></MenuItem.Icon>
+      </MenuItem>
+    </ContextMenu>
+  </UserControl.Resources>
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+    <!-- 工具栏（窄窗口自动换行） -->
+    <Border Grid.Row="0" Margin="0,0,0,10">
+      <WrapPanel>
+        <Button Classes="tool" Margin="0,0,8,8" Command="{Binding RefreshCommand}" ToolTip.Tip="重新加载应用列表">
+          <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" VerticalAlignment="Center"/>
+        </Button>
+        <ProgressBar Classes="slim" Width="16" IsIndeterminate="True" Margin="0,0,8,8"
+                     IsVisible="{Binding IsLoading}" VerticalAlignment="Center"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding FilterAll, Mode=OneWay}"
+                      Command="{Binding SelectFilterCommand}" CommandParameter="all" Content="全部"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding FilterApt, Mode=OneWay}"
+                      Command="{Binding SelectFilterCommand}" CommandParameter="apt" Content="APT"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding FilterSnap, Mode=OneWay}"
+                      Command="{Binding SelectFilterCommand}" CommandParameter="snap" Content="Snap"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding FilterFlatpak, Mode=OneWay}"
+                      Command="{Binding SelectFilterCommand}" CommandParameter="flatpak" Content="Flatpak"/>
+        <TextBlock x:Name="CountText" Classes="t-dim" VerticalAlignment="Center" Margin="4,0,8,8"/>
+        <TextBox Width="240" Margin="0,0,0,8" Text="{Binding SearchText}" Watermark="搜索名称 / 描述…"/>
+      </WrapPanel>
+    </Border>
+
+    <!-- 安装行（窄窗口自动换行） -->
+    <Border Grid.Row="1" Margin="0,0,0,10">
+      <WrapPanel>
+        <TextBlock Text="安装新应用：" VerticalAlignment="Center" Margin="0,0,8,8"
+                   Foreground="{DynamicResource C_Fg2}"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding InstallApt, Mode=OneWay}"
+                      Command="{Binding SelectInstallSourceCommand}" CommandParameter="apt" Content="apt"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding InstallSnap, Mode=OneWay}"
+                      Command="{Binding SelectInstallSourceCommand}" CommandParameter="snap" Content="snap"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding InstallFlatpak, Mode=OneWay}"
+                      Command="{Binding SelectInstallSourceCommand}" CommandParameter="flatpak" Content="flatpak"/>
+        <TextBox Width="260" Margin="0,0,8,8" Text="{Binding InstallName}" Watermark="包名，如 nginx / htop"
+                 KeyDown="OnInstallKeyDown"/>
+        <Button Classes="primary" Margin="0,0,0,8" Command="{Binding InstallCommand}" Content="安装"/>
+      </WrapPanel>
+    </Border>
+
+    <!-- 应用列表 -->
+    <Border Grid.Row="2" Classes="card" Padding="0" ClipToBounds="True">
+      <DataGrid x:Name="AppsGrid" ItemsSource="{Binding Entries}"
+                AutoGenerateColumns="False" IsReadOnly="True"
+                CanUserResizeColumns="True" HeadersVisibility="Column"
+                GridLinesVisibility="None" SelectionMode="Single"
+                Background="Transparent" BorderThickness="0" RowBackground="Transparent">
+        <DataGrid.Columns>
+          <DataGridTemplateColumn Header="名称" Width="2*">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:AppEntryViewModel">
+                <StackPanel Orientation="Horizontal" Spacing="9" Background="Transparent"
+                            ContextMenu="{StaticResource AppMenu}">
+                  <Path Classes="icon" Data="{StaticResource IcPackage}" Stroke="{Binding SourceBrush}"
+                        Width="16" Height="16" VerticalAlignment="Center"/>
+                  <StackPanel Orientation="Vertical" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Id}" FontSize="10.5" Foreground="{DynamicResource C_Fg3}"
+                               TextTrimming="CharacterEllipsis" FontFamily="{StaticResource MonoFont}"/>
+                  </StackPanel>
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="版本" Width="120">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:AppEntryViewModel">
+                <TextBlock Text="{Binding Version}" Foreground="{DynamicResource C_Fg2}" FontSize="12"
+                           FontFamily="{StaticResource MonoFont}" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="来源" Width="90">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:AppEntryViewModel">
+                <TextBlock Text="{Binding Source}" Foreground="{Binding SourceBrush}" FontSize="12"
+                           FontWeight="SemiBold" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="说明" Width="3*">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:AppEntryViewModel">
+                <TextBlock Text="{Binding Description}" Foreground="{DynamicResource C_Fg2}" FontSize="12"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="备注" Width="120">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:AppEntryViewModel">
+                <TextBlock Text="{Binding Extra}" Foreground="{DynamicResource C_Fg3}" FontSize="11.5"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="操作" Width="90">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="vm:AppEntryViewModel">
+                <Button Classes="ghost" Height="28" Padding="12,4" FontSize="12"
+                        Command="{Binding UninstallCommand}" Content="卸载"/>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
+
+    <!-- 输出面板开关 -->
+    <Grid Grid.Row="3" Margin="0,8,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <TextBlock Classes="t-dim" Text="首次加载可能需要几秒钟（dpkg 列表较大）" VerticalAlignment="Center"/>
+        <Button Classes="ghost" Height="28" Padding="12,4" Command="{Binding TogglePanelCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Path Classes="icon c-dim" Data="{StaticResource IcTerminal}" Width="14" Height="14"/>
+            <TextBlock Text="操作输出"/>
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- 输出面板 -->
+    <Border Grid.Row="4" Classes="card sub" Margin="0,10,0,0" Padding="12,8" Height="200"
+            IsVisible="{Binding PanelOpen}" x:Name="OutputPanel">
+      <DockPanel>
+        <Border DockPanel.Dock="Top" Margin="4,0,4,6">
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBlock Classes="t-h2" Text="操作输出" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Classes="ghost" Height="28" Padding="12,4" Content="清空"
+                    Command="{Binding ClearLogCommand}"/>
+            <Button Grid.Column="2" Classes="tool" Command="{Binding TogglePanelCommand}"
+                    ToolTip.Tip="收起">
+              <Path Classes="icon c-dim" Data="{StaticResource IcChevronDown}"/>
+            </Button>
+          </Grid>
+        </Border>
+        <ScrollViewer x:Name="LogScroller">
+          <TextBlock Text="{Binding Log.Text}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                     Foreground="{DynamicResource C_Fg2}" TextWrapping="NoWrap" Margin="4,0"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+  </Grid>
+</UserControl>

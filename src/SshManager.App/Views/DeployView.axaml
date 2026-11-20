@@ -1,0 +1,159 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             x:Class="SshManager.App.Views.DeployView"
+             x:DataType="vm:DeployViewModel">
+
+  <UserControl.DataTemplates>
+    <DataTemplate x:DataType="vm:BundleRowViewModel">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,0,0,4">
+        <TextBlock Text="{Binding Mark}" Foreground="{Binding Brush}"
+                   FontSize="12" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="{Binding Name}" FontFamily="{StaticResource MonoFont}"
+                   FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="2" Text="{Binding Detail}" Classes="t-dim" FontSize="11"
+                   VerticalAlignment="Center"/>
+      </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:DataType="vm:PreflightRowViewModel">
+      <Grid ColumnDefinitions="18,86,*" ColumnSpacing="8" Margin="0,0,0,5">
+        <TextBlock Text="{Binding Glyph}" Foreground="{Binding Brush}" FontWeight="Bold"
+                   FontSize="12" VerticalAlignment="Top" HorizontalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                   TextTrimming="CharacterEllipsis" VerticalAlignment="Top"/>
+        <TextBlock Grid.Column="2" Text="{Binding Detail}" Classes="t-dim" FontSize="11.5"
+                   TextWrapping="Wrap" VerticalAlignment="Top"/>
+      </Grid>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <DockPanel>
+    <!-- 顶部：部署包目录 -->
+    <Border DockPanel.Dock="Top" Margin="0,0,0,10">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
+        <TextBlock Text="部署包目录" Classes="t-dim" VerticalAlignment="Center" Margin="0,0,4,0"/>
+        <TextBox Grid.Column="1" Text="{Binding BundleDir}" x:Name="DirBox"
+                 Watermark="例：/home/zg/ssts-bundle（文件先用「文件管理」上传到服务器）"
+                 FontFamily="{StaticResource MonoFont}" FontSize="12.5"
+                 KeyDown="OnDirKeyDown"/>
+        <Button Grid.Column="2" Classes="ghost" Command="{Binding BrowseCommand}" MinWidth="72"
+                Content="浏览…"/>
+        <Button Grid.Column="3" Classes="primary" Command="{Binding ScanCommand}" MinWidth="108"
+                IsEnabled="{Binding !IsScanning}">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Path Classes="icon c-acc" Data="{StaticResource IcSearch}" Stroke="{DynamicResource C_AccFg}"
+                  Width="13" Height="13" StrokeThickness="2"/>
+            <TextBlock Text="{Binding ScanButtonText}"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Border>
+
+    <Grid ColumnDefinitions="330,*" ColumnSpacing="12">
+      <!-- 左列：检测结果 + 预检 -->
+      <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="12">
+          <Border Classes="card" Padding="12">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="t-h2" Text="部署包检测"/>
+              <TextBlock Classes="t-dim" FontSize="11.5" Text="关键文件是否齐全（缺项不影响执行，仅供核对）"
+                         IsVisible="{Binding !HasResult}"/>
+              <ItemsControl ItemsSource="{Binding BundleRows}"/>
+              <StackPanel Spacing="6" Margin="0,4,0,0" IsVisible="{Binding HasResult}">
+                <TextBlock Classes="t-dim" FontSize="11.5" Text="入口脚本"/>
+                <ComboBox ItemsSource="{Binding EntryScripts}" SelectedItem="{Binding SelectedEntryScript}"
+                          HorizontalAlignment="Stretch" FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="card" Padding="12">
+            <StackPanel Spacing="8">
+              <TextBlock Classes="t-h2" Text="服务器预检"/>
+              <ItemsControl ItemsSource="{Binding PreflightRows}"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- 右列：模式 + 命令 + 日志 -->
+      <DockPanel Grid.Column="1">
+        <StackPanel DockPanel.Dock="Top" Spacing="8">
+          <!-- 模式 -->
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ToggleButton Classes="tab" IsChecked="{Binding ModeCheck, Mode=OneWay}"
+                          Command="{Binding SelectModeCommand}" CommandParameter="check" Content="检查状态"/>
+            <ToggleButton Classes="tab" IsChecked="{Binding ModeFull, Mode=OneWay}"
+                          Command="{Binding SelectModeCommand}" CommandParameter="full" Content="全新部署"/>
+            <ToggleButton Classes="tab" IsChecked="{Binding ModeUpdate, Mode=OneWay}"
+                          Command="{Binding SelectModeCommand}" CommandParameter="update" Content="更新应用/Web"/>
+            <ToggleButton Classes="tab" IsChecked="{Binding ModeKiosk, Mode=OneWay}"
+                          Command="{Binding SelectModeCommand}" CommandParameter="kiosk" Content="部署/更新 kiosk"/>
+          </StackPanel>
+
+          <!-- 推荐横幅 -->
+          <Border Background="{DynamicResource C_Sel}" CornerRadius="8" Padding="10,7"
+                  BorderBrush="{Binding RecommendBrush}" BorderThickness="1">
+            <TextBlock Text="{Binding Recommendation}" FontSize="12" TextWrapping="Wrap"
+                       Foreground="{Binding RecommendBrush}"/>
+          </Border>
+
+          <!-- 模式说明 -->
+          <StackPanel Spacing="2" IsVisible="{Binding ModeCheck}">
+            <TextBlock Classes="t-dim" FontSize="11.5" Text="只读检查磁盘 / 已有 SSTS / 端口 80 / kiosk 组件，不做任何修改。"/>
+          </StackPanel>
+          <StackPanel Spacing="2" IsVisible="{Binding ModeFull}">
+            <TextBlock Classes="t-dim" FontSize="11.5" Text="仅干净服务器：安装离线 Docker/snapd、导入镜像与数据库、部署 kiosk。已有 SSTS 的服务器请勿使用。"/>
+          </StackPanel>
+          <StackPanel Spacing="2" IsVisible="{Binding ModeUpdate}">
+            <TextBlock Classes="t-dim" FontSize="11.5" Text="只处理 update/ 中的 jar / web / 配置并重启服务；已装 Docker 等环境不会重装。"/>
+          </StackPanel>
+          <StackPanel Spacing="2" IsVisible="{Binding ModeKiosk}">
+            <TextBlock Classes="t-dim" FontSize="11.5" Text="只安装缺失的字体 / snap 与看门狗、U 盘同步等；不动应用、容器、数据库。"/>
+          </StackPanel>
+
+          <!-- 命令 -->
+          <TextBox Text="{Binding CommandText}" FontFamily="{StaticResource MonoFont}" FontSize="12.5"
+                   Watermark="扫描后自动生成；可按部署包 remote/ 脚本的实际参数修改"/>
+          <TextBlock Classes="t-dim" FontSize="11"
+                     Text="提示：默认入口为 remote/deploy-remote.sh --mode=…；参数以你部署包内的脚本为准，可直接编辑。非 root 用户自动以 sudo 执行。"/>
+        </StackPanel>
+
+        <!-- 执行栏 + 日志 -->
+        <DockPanel Margin="0,10,0,0">
+          <Border DockPanel.Dock="Top" Padding="0,0,0,8">
+            <WrapPanel>
+              <Button Classes="primary" Margin="0,0,10,6" Command="{Binding RunCommand}" MinWidth="104"
+                      IsEnabled="{Binding !IsRunning}">
+                <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                  <Path Stretch="Uniform" Data="{StaticResource IcPlay}" Stroke="{DynamicResource C_AccFg}"
+                        StrokeThickness="2" StrokeJoin="Round" Fill="Transparent" Width="13" Height="13"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="开始执行" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="danger" Margin="0,0,10,6" Command="{Binding StopCommand}" MinWidth="84"
+                      IsVisible="{Binding IsRunning}" Content="停止"/>
+              <Border Classes="badge" VerticalAlignment="Center" Margin="0,0,10,6" IsVisible="{Binding HasResult}">
+                <TextBlock Text="{Binding StatusText}" FontSize="11.5" Foreground="{Binding StatusBrush}"/>
+              </Border>
+              <TextBlock Text="{Binding ElapsedText}" FontFamily="{StaticResource MonoFont}"
+                         FontSize="12" Foreground="{DynamicResource C_Fg3}" VerticalAlignment="Center"
+                         Margin="0,0,10,6"/>
+              <Button Classes="ghost" Height="28" Padding="10,4" FontSize="12" Margin="0,0,0,6"
+                      Command="{Binding ClearLogCommand}" Content="清空日志"/>
+            </WrapPanel>
+          </Border>
+
+          <Border Classes="card sub" Padding="12" MinHeight="140">
+            <ScrollViewer x:Name="LogScroller">
+              <TextBlock Text="{Binding Log.Text}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                         Foreground="{DynamicResource C_Fg2}" TextWrapping="Wrap"/>
+            </ScrollViewer>
+          </Border>
+        </DockPanel>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</UserControl>

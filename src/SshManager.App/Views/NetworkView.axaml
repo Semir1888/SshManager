@@ -1,0 +1,394 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             x:Class="SshManager.App.Views.NetworkView"
+             x:DataType="vm:NetworkViewModel">
+  <UserControl.Resources>
+    <DataTemplate x:Key="IfItemTemplate" x:DataType="vm:NetIfItemViewModel">
+      <StackPanel Spacing="1">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+          <Border Classes="badge">
+            <TextBlock Text="{Binding Kind}" FontSize="10.5" Classes="t-dim"/>
+          </Border>
+        </StackPanel>
+        <TextBlock Text="{Binding AddrText}" Classes="t-dim" FontSize="11"
+                   FontFamily="{StaticResource MonoFont}"/>
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <!-- 表单标签：统一宽度、统一灰色、垂直居中 -->
+    <Style Selector="TextBlock.nlbl">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg2}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBox.nfield">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Height" Value="32"/>
+    </Style>
+    <!-- 卡片头部标题 -->
+    <Style Selector="TextBlock.cardh">
+      <Setter Property="FontSize" Value="14.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.nact">
+      <Setter Property="Height" Value="30"/>
+      <Setter Property="Padding" Value="14,3"/>
+      <Setter Property="FontSize" Value="12.5"/>
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <!-- ══════════ 标题行 ══════════ -->
+    <Border DockPanel.Dock="Top">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
+        <TextBlock Classes="t-title" Text="网络设置" VerticalAlignment="Center"/>
+        <ProgressBar Grid.Column="1" Classes="slim" Width="16" IsIndeterminate="True"
+                     IsVisible="{Binding IsBusy}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="2" Text="IP · 网关 · DNS · WiFi · 防火墙 · 主机名（工程配置）"
+                   Classes="t-dim" VerticalAlignment="Center" HorizontalAlignment="Right"
+                   TextTrimming="CharacterEllipsis"/>
+        <Button Grid.Column="3" Classes="ghost nact" Command="{Binding RefreshCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" Width="14" Height="14"/>
+            <TextBlock Text="刷新"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <StackPanel Spacing="12" Margin="0,16,0,0">
+
+        <!-- ══════════ ① 网卡 IP 配置 ══════════ -->
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <Path Classes="icon c-acc" Data="{StaticResource IcGlobe}"/>
+                <TextBlock Classes="cardh" Text="网卡 IP 配置"/>
+              </StackPanel>
+              <Button Grid.Column="1" Classes="primary nact" Command="{Binding ApplyIpCommand}"
+                      IsEnabled="{Binding !IfBusy}"
+                      ToolTip.Tip="应用后网络会短暂中断，SSH 可能断开">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <Path Stretch="Uniform" Data="{StaticResource IcCheck}" Stroke="{DynamicResource C_AccFg}"
+                        StrokeThickness="2" StrokeJoin="Round" VerticalAlignment="Center" Width="13" Height="13"/>
+                  <TextBlock Text="应用配置"/>
+                </StackPanel>
+              </Button>
+            </Grid>
+
+            <!-- 网卡选择 + 当前状态摘要 -->
+            <Border Classes="card sub" Padding="12,10">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="76,300,Auto" ColumnSpacing="10">
+                  <TextBlock Classes="nlbl" Text="选择网卡"/>
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding Interfaces}"
+                            SelectedItem="{Binding SelectedInterface}"
+                            ItemTemplate="{StaticResource IfItemTemplate}"
+                            HorizontalAlignment="Stretch"/>
+                  <ProgressBar Grid.Column="2" Classes="slim" Width="16" IsIndeterminate="True"
+                               IsVisible="{Binding IfBusy}" VerticalAlignment="Center"/>
+                </Grid>
+                <TextBlock Classes="t-dim" FontSize="11.5" TextWrapping="Wrap"
+                           IsVisible="{Binding HasInterface}" LineHeight="17">
+                  <Run Text="状态 "/><Run Text="{Binding SelectedInterface.StateText}" Foreground="{DynamicResource C_Fg}"/>
+                  <Run Text="　·　地址 "/><Run Text="{Binding SelectedInterface.AddrText}" Foreground="{DynamicResource C_Fg}" FontFamily="{StaticResource MonoFont}"/>
+                  <Run Text="　·　网关 "/><Run Text="{Binding SelectedInterface.Model.Gateway}" Foreground="{DynamicResource C_Fg}" FontFamily="{StaticResource MonoFont}"/>
+                  <Run Text="　·　DNS "/><Run Text="{Binding SelectedInterface.Model.Dns}" Foreground="{DynamicResource C_Fg}" FontFamily="{StaticResource MonoFont}"/>
+                  <Run Text="　·　管理 "/><Run Text="{Binding SelectedInterface.MethodText}" Foreground="{DynamicResource C_Fg}"/>
+                </TextBlock>
+              </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Spacing="18" Margin="2,0,0,2">
+              <RadioButton Content="自动获取（DHCP）" IsChecked="{Binding UseDhcp}" FontSize="13"/>
+              <RadioButton Content="静态 IP" IsChecked="{Binding UseStatic}" FontSize="13"/>
+            </StackPanel>
+
+            <!-- 静态参数表单（DHCP 时整块禁用变暗） -->
+            <Border Classes="card sub" Padding="12,10" IsEnabled="{Binding UseStatic}">
+              <Grid ColumnDefinitions="76,*,28,76,*" RowDefinitions="Auto,10,Auto" ColumnSpacing="10">
+                <TextBlock Classes="nlbl" Text="IP 地址"/>
+                <TextBox Grid.Column="1" Classes="nfield" Text="{Binding IpText}"
+                         Watermark="192.168.1.10" ToolTip.Tip="IPv4 地址"/>
+                <TextBlock Grid.Column="3" Classes="nlbl" Text="子网掩码"/>
+                <TextBox Grid.Column="4" Classes="nfield" Text="{Binding PrefixText}"
+                         Watermark="24 或 255.255.255.0" ToolTip.Tip="前缀长度或点分掩码"/>
+
+                <TextBlock Grid.Row="2" Classes="nlbl" Text="网关"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Classes="nfield" Text="{Binding GatewayText}"
+                         Watermark="192.168.1.1" ToolTip.Tip="留空 = 不设置默认路由"/>
+                <TextBlock Grid.Row="2" Grid.Column="3" Classes="nlbl" Text="DNS"/>
+                <TextBox Grid.Row="2" Grid.Column="4" Classes="nfield" Text="{Binding DnsText}"
+                         Watermark="可多个，空格分隔" ToolTip.Tip="如 8.8.8.8 223.5.5.5"/>
+              </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <TextBlock Text="应用时网络会短暂中断，配置有误可能导致 SSH 失联（需到服务器本机恢复）；旧配置自动备份为 .bak。"
+                         Classes="t-dim" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"/>
+              <TextBlock Grid.Column="1" Text="{Binding IfStatus}" FontSize="12"
+                         Foreground="{DynamicResource C_Fg}" VerticalAlignment="Center"
+                         TextWrapping="Wrap" MaxWidth="400" TextAlignment="Right"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- ══════════ ② WiFi 连接 ══════════ -->
+        <Border Classes="card">
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <Path Classes="icon c-warn" Data="{StaticResource IcLink}"/>
+                <TextBlock Classes="cardh" Text="WiFi 连接"/>
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text="{Binding WifiStatus}" Classes="t-dim"
+                         VerticalAlignment="Center" MaxWidth="320" TextTrimming="CharacterEllipsis"
+                         ToolTip.Tip="{Binding WifiStatus}"/>
+              <Button Grid.Column="2" Classes="ghost nact" Command="{Binding ScanWifiCommand}"
+                      IsEnabled="{Binding !WifiBusy}" Content="扫描网络"/>
+            </Grid>
+
+            <TextBlock Classes="t-dim" TextWrapping="Wrap" FontSize="11" LineHeight="17"
+                       Text="WiFi 由 NetworkManager 管理。点击网络旁的“连接”输入密码即可；工程设备建议连接后到上方“网卡 IP 配置”里固定 IP。"/>
+
+            <Border IsVisible="{Binding !WifiSupported}" Classes="card sub" Padding="12,8">
+              <TextBlock Classes="t-dim" TextWrapping="Wrap"
+                         Text="服务器未安装 NetworkManager（或无无线网卡），无法管理 WiFi。可在终端执行 sudo apt install network-manager 安装后刷新本页。"/>
+            </Border>
+
+            <Grid IsVisible="{Binding WifiSupported}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <!-- 扫描列表 -->
+              <Border Classes="card sub" Padding="0" MaxHeight="260"
+                      IsVisible="{Binding WifiBusy, Converter={x:Static BoolConverters.Not}}">
+                <ScrollViewer>
+                  <ItemsControl ItemsSource="{Binding WifiList}" Margin="6,4">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:WifiItemViewModel">
+                        <Border Padding="10,7" BorderBrush="{DynamicResource C_Border}"
+                                BorderThickness="0,0,0,1">
+                          <Grid ColumnDefinitions="Auto,*,130,110,60,Auto" ColumnSpacing="12">
+                            <Ellipse Width="8" Height="8" Fill="{DynamicResource C_Acc}"
+                                     VerticalAlignment="Center" IsVisible="{Binding InUse}"
+                                     ToolTip.Tip="当前使用中"/>
+                            <Grid Grid.Column="1" ColumnDefinitions="*,Auto,Auto"
+                                  ColumnSpacing="8" VerticalAlignment="Center">
+                              <TextBlock Text="{Binding Ssid}" FontWeight="SemiBold" FontSize="12.5"
+                                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                              <Border Grid.Column="1" Classes="badge" IsVisible="{Binding IsSecured}"
+                                      VerticalAlignment="Center">
+                                <TextBlock Text="加密" FontSize="10" Classes="t-dim"/>
+                              </Border>
+                              <Border Grid.Column="2" Classes="badge" IsVisible="{Binding IsOpen}"
+                                      VerticalAlignment="Center">
+                                <TextBlock Text="开放" FontSize="10" Classes="t-dim"/>
+                              </Border>
+                            </Grid>
+                            <ProgressBar Grid.Column="2" Classes="slim" Value="{Binding SignalNum}"
+                                         Maximum="100" VerticalAlignment="Center"
+                                         ToolTip.Tip="{Binding Signal}"/>
+                            <TextBlock Grid.Column="3" Text="{Binding SecurityText}" Classes="t-dim"
+                                       FontSize="11.5" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="{Binding Channel}" Classes="t-dim"
+                                       FontSize="11.5" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource MonoFont}"
+                                       ToolTip.Tip="信道"/>
+                            <Button Grid.Column="5" Classes="ghost" Height="26" Padding="12,3"
+                                    FontSize="12" Command="{Binding ConnectCommand}"
+                                    IsEnabled="{Binding !Model.InUse}" Content="连接"/>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </Border>
+              <ProgressBar Grid.Row="0" Classes="slim" IsIndeterminate="True"
+                           IsVisible="{Binding WifiBusy}"/>
+
+              <!-- 已保存连接 -->
+              <StackPanel Grid.Row="1" Spacing="6" Margin="0,10,0,0"
+                          IsVisible="{Binding HasWifiConns}">
+                <TextBlock Classes="t-dim" Text="已保存的连接" Margin="2,0,0,0"/>
+                <ItemsControl ItemsSource="{Binding WifiConns}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WifiConnItemViewModel">
+                      <Border Padding="10,6" Background="{DynamicResource C_Card2}"
+                              CornerRadius="8" Margin="0,0,0,6">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                          <TextBlock Text="{Binding Name}" FontSize="12.5" VerticalAlignment="Center"/>
+                          <TextBlock Grid.Column="1" Text="{Binding Device}" Classes="t-dim"
+                                     FontSize="11.5" VerticalAlignment="Center"/>
+                          <Button Grid.Column="2" Classes="ghost" Height="26" Padding="12,3"
+                                  FontSize="12" Command="{Binding DisconnectCommand}"
+                                  IsVisible="{Binding IsActive}" Content="断开"/>
+                          <Button Grid.Column="3" Classes="ghost" Height="26" Padding="12,3"
+                                  FontSize="12" Command="{Binding ForgetCommand}" Content="忘记"/>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- ══════════ ③ 防火墙（UFW） ══════════ -->
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <WrapPanel>
+              <StackPanel Orientation="Horizontal" Spacing="9" Margin="0,0,10,6">
+                <Path Classes="icon c-danger" Data="{StaticResource IcShield}" VerticalAlignment="Center"/>
+                <TextBlock Classes="cardh" Text="防火墙（UFW）" VerticalAlignment="Center"/>
+              </StackPanel>
+              <Border Classes="badge" VerticalAlignment="Center" Margin="0,0,10,6"
+                      IsVisible="{Binding UfwActive}">
+                <TextBlock Text="已启用" FontSize="11" Foreground="{DynamicResource C_Acc}"/>
+              </Border>
+              <Border Classes="badge" VerticalAlignment="Center" Margin="0,0,10,6"
+                      IsVisible="{Binding !UfwActive}">
+                <TextBlock Text="未启用" FontSize="11" Classes="t-dim"/>
+              </Border>
+              <TextBlock Text="{Binding UfwStatus}" Classes="t-dim"
+                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                         MaxWidth="300" Margin="0,0,10,6"
+                         ToolTip.Tip="{Binding UfwStatus}"/>
+              <Button Classes="ghost nact" Margin="0,0,8,6" Command="{Binding ToggleUfwCommand}"
+                      IsEnabled="{Binding !UfwBusy}" Content="{Binding UfwToggleText}"/>
+              <Button Classes="ghost nact" Margin="0,0,0,6" Command="{Binding RefreshCommand}"
+                      ToolTip.Tip="重新读取防火墙状态">
+                <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" Width="14" Height="14" VerticalAlignment="Center"/>
+                  <TextBlock Text="刷新" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Button>
+            </WrapPanel>
+
+            <Border IsVisible="{Binding !UfwInstalled}" Classes="card sub" Padding="12,8">
+              <TextBlock Classes="t-dim" TextWrapping="Wrap"
+                         Text="服务器未安装 ufw。可在终端执行 sudo apt install ufw 安装后刷新本页。"/>
+            </Border>
+
+            <Grid IsVisible="{Binding UfwInstalled}" RowDefinitions="Auto,Auto,Auto,Auto">
+              <!-- 默认策略 -->
+              <Grid Grid.Row="0" ColumnDefinitions="96,110,Auto,*,Auto" ColumnSpacing="10">
+                <TextBlock Classes="nlbl" Text="默认入站策略"/>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding DefaultInChoices}"
+                          SelectedItem="{Binding DefaultIncomingChoice}" Height="30"/>
+                <Button Grid.Column="2" Classes="ghost nact" Command="{Binding ApplyUfwDefaultCommand}"
+                        IsEnabled="{Binding !UfwBusy}" Content="设置"/>
+                <TextBlock Grid.Column="4" Classes="t-dim" FontSize="11" VerticalAlignment="Center"
+                           HorizontalAlignment="Right">
+                  <Run Text="当前：入站 "/><Run Text="{Binding UfwIncoming}" Foreground="{DynamicResource C_Fg}"/>
+                  <Run Text=" · 出站 "/><Run Text="{Binding UfwOutgoing}" Foreground="{DynamicResource C_Fg}"/>
+                </TextBlock>
+              </Grid>
+
+              <!-- 添加规则 -->
+              <Border Grid.Row="1" Classes="card sub" Padding="12,10" Margin="0,12,0,0">
+                <Grid ColumnDefinitions="76,100,130,100,*,Auto" ColumnSpacing="10">
+                  <TextBlock Classes="nlbl" Text="添加规则"/>
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding ActionChoices}"
+                            SelectedItem="{Binding AddAction}" Height="30"
+                            ToolTip.Tip="允许 / 拒绝 / 限制（限速放行）"/>
+                  <TextBox Grid.Column="2" Classes="nfield" Text="{Binding AddPort}"
+                           Watermark="端口 / 范围"
+                           ToolTip.Tip="如 22、8080、8000:8010，留空 = 任意端口"/>
+                  <ComboBox Grid.Column="3" ItemsSource="{Binding ProtoChoices}"
+                            SelectedItem="{Binding AddProto}" Height="30"/>
+                  <TextBox Grid.Column="4" Classes="nfield" Text="{Binding AddFrom}"
+                           Watermark="来源 IP / 网段（可选）"
+                           ToolTip.Tip="如 192.168.1.0/24；留空 = 任意来源"/>
+                  <Button Grid.Column="5" Classes="primary nact" Command="{Binding AddUfwRuleCommand}"
+                          IsEnabled="{Binding !UfwBusy}" Content="添加"/>
+                </Grid>
+              </Border>
+
+              <!-- 规则表 -->
+              <Border Grid.Row="2" Classes="card sub" Padding="0" Margin="0,12,0,0"
+                      MaxHeight="300" IsVisible="{Binding UfwActive}">
+                <ScrollViewer>
+                  <ItemsControl ItemsSource="{Binding UfwRules}" Margin="6,4">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:UfwRuleItemViewModel">
+                        <Border Padding="10,6" BorderBrush="{DynamicResource C_Border}"
+                                BorderThickness="0,0,0,1">
+                          <Grid ColumnDefinitions="50,90,*,230,Auto" ColumnSpacing="10">
+                            <TextBlock Text="{Binding Num}" Classes="t-dim" FontSize="12"
+                                       VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Action}" FontSize="12"
+                                       VerticalAlignment="Center" FontWeight="SemiBold"
+                                       Foreground="{Binding ActionBrush}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding To}" FontSize="12"
+                                       VerticalAlignment="Center" FontFamily="{StaticResource MonoFont}"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding To}"/>
+                            <TextBlock Grid.Column="3" Text="{Binding From}" Classes="t-dim"
+                                       FontSize="12" VerticalAlignment="Center"
+                                       FontFamily="{StaticResource MonoFont}"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding From}"/>
+                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="6">
+                              <Button Classes="ghost" Height="26" Padding="12,3"
+                                      FontSize="12" Command="{Binding EditCommand}"
+                                      ToolTip.Tip="修改这条规则（删除原规则并按新配置添加）" Content="修改"/>
+                              <Button Classes="ghost" Height="26" Padding="12,3"
+                                      FontSize="12" Command="{Binding DeleteCommand}"
+                                      ToolTip.Tip="删除这条规则" Content="删除"/>
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </Border>
+              <TextBlock Grid.Row="3" Classes="t-dim" FontSize="11" Margin="2,6,0,0"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding !UfwActive}"
+                         Text="防火墙未启用，规则不生效。启用前请确认已放行 SSH（22 端口），避免失联。"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- ══════════ ④ 主机名 ══════════ -->
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <Path Classes="icon c-info" Data="{StaticResource IcServer}"/>
+                <TextBlock Classes="cardh" Text="主机名"/>
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text="{Binding HostnameStatus}" Classes="t-dim"
+                         VerticalAlignment="Center"/>
+            </Grid>
+            <Grid ColumnDefinitions="76,240,28,*,Auto" ColumnSpacing="10">
+              <TextBlock Classes="nlbl" Text="当前主机名"/>
+              <TextBox Grid.Column="1" Classes="nfield" Text="{Binding Hostname}" IsReadOnly="True"
+                       ToolTip.Tip="{Binding Hostname}"/>
+              <TextBox Grid.Column="3" Classes="nfield" Text="{Binding HostnameInput}"
+                       Watermark="输入新主机名（如 edge-01）"/>
+              <Button Grid.Column="4" Classes="primary nact" Command="{Binding SetHostnameCommand}"
+                      Content="设置"/>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <TextBlock Text="{Binding ErrorText}" FontSize="12" Foreground="{DynamicResource C_Danger}"
+                   TextWrapping="Wrap"/>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

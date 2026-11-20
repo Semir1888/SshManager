@@ -1,0 +1,276 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             xmlns:v="using:SshManager.App.Views"
+             xmlns:services="using:SshManager.App.Services"
+             x:Class="SshManager.App.Views.FileManagerView"
+             x:DataType="vm:FileManagerViewModel">
+  <UserControl.Resources>
+    <ContextMenu x:Key="EntryMenu" x:DataType="vm:FileEntryViewModel">
+      <MenuItem Header="进入目录 / 编辑" Command="{Binding OpenCommand}">
+        <MenuItem.Icon><Path Classes="icon c-dim" Data="{StaticResource IcFileText}" Width="14" Height="14"/></MenuItem.Icon>
+      </MenuItem>
+      <MenuItem Header="编辑" Command="{Binding EditCommand}">
+        <MenuItem.Icon><Path Classes="icon c-dim" Data="{StaticResource IcPencil}" Width="14" Height="14"/></MenuItem.Icon>
+      </MenuItem>
+      <MenuItem Header="下载" Command="{Binding DownloadCommand}">
+        <MenuItem.Icon><Path Classes="icon c-dim" Data="{StaticResource IcDownload}" Width="14" Height="14"/></MenuItem.Icon>
+      </MenuItem>
+      <MenuItem Header="重命名" Command="{Binding RenameCommand}">
+        <MenuItem.Icon><Path Classes="icon c-dim" Data="{StaticResource IcPencil}" Width="14" Height="14"/></MenuItem.Icon>
+      </MenuItem>
+      <MenuItem Header="属性" Command="{Binding PropertiesCommand}">
+        <MenuItem.Icon><Path Classes="icon c-dim" Data="{StaticResource IcInfo}" Width="14" Height="14"/></MenuItem.Icon>
+      </MenuItem>
+      <Separator/>
+      <MenuItem Header="删除" Command="{Binding DeleteCommand}" Foreground="#f43f5e">
+        <MenuItem.Icon><Path Classes="icon c-danger" Data="{StaticResource IcTrash}" Width="14" Height="14"/></MenuItem.Icon>
+      </MenuItem>
+    </ContextMenu>
+  </UserControl.Resources>
+
+  <!-- ══════════ 文件管理模块内部标签条：主Tab（文件浏览）不可关闭 + 右侧编辑标签 ══════════ -->
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0" Margin="0,0,0,10" IsVisible="{Binding HasEditorTabs}"
+            DockPanel.Dock="Top">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <ToggleButton Classes="itab" IsChecked="{Binding IsBrowserTab, Mode=OneWay}"
+                        Command="{Binding ShowBrowserCommand}"
+                        ToolTip.Tip="返回文件浏览（编辑中的内容与光标保持不变）">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Path Classes="icon c-dim" Data="{StaticResource IcFolder}" Width="14" Height="14"/>
+              <TextBlock Text="文件浏览"/>
+            </StackPanel>
+          </ToggleButton>
+          <ItemsControl ItemsSource="{Binding EditorTabs}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="6"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:EditorTabViewModel">
+                <ToggleButton Classes="itab" IsChecked="{Binding IsSelected, Mode=OneWay}"
+                              Command="{Binding ActivateCommand}" ToolTip.Tip="{Binding Path}">
+                  <StackPanel Orientation="Horizontal" Spacing="7">
+                    <Path Classes="icon c-dim" Data="{StaticResource IcFileText}" Width="13" Height="13"/>
+                    <TextBlock Text="{Binding Header}" TextTrimming="CharacterEllipsis"
+                               MaxWidth="170"/>
+                    <Button Classes="toolmini" Width="18" Height="18" Padding="2"
+                            Command="{Binding CloseCommand}" ToolTip.Tip="关闭标签页（未保存会先询问）">
+                      <Path Classes="icon c-dim" Data="{StaticResource IcX}" Width="9" Height="9"/>
+                    </Button>
+                  </StackPanel>
+                </ToggleButton>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- ══════════ 内容区：文件浏览主Tab 与各编辑标签同层叠放（保持活动，切换仅隐藏） ══════════ -->
+    <Panel Grid.Row="1">
+
+      <!-- 主Tab：文件浏览 -->
+      <Grid x:Name="RootGrid" IsVisible="{Binding IsBrowserTab}" Background="Transparent">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 导航行（路径框可压缩，窗口变窄时仍完整可用） -->
+        <Border Grid.Row="0" Margin="0,0,0,10">
+          <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,190" ColumnSpacing="8">
+            <Button Classes="tool" Command="{Binding GoUpCommand}" ToolTip.Tip="上一级">
+              <Path Classes="icon c-dim" Data="{StaticResource IcArrowUp}" VerticalAlignment="Center"/>
+            </Button>
+            <Button Grid.Column="1" Classes="tool" Command="{Binding GoHomeCommand}" ToolTip.Tip="主目录">
+              <Path Classes="icon c-dim" Data="{StaticResource IcHome}" VerticalAlignment="Center"/>
+            </Button>
+            <Button Grid.Column="2" Classes="tool" Command="{Binding RefreshCommand}" ToolTip.Tip="刷新 (F5)">
+              <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" VerticalAlignment="Center"/>
+            </Button>
+            <TextBox Grid.Column="3" Text="{Binding PathText}" FontFamily="{StaticResource MonoFont}"
+                     FontSize="12.5" Watermark="远程路径" MinWidth="140" x:Name="PathBox" KeyDown="OnPathKeyDown"/>
+            <Button Grid.Column="4" Classes="ghost" Command="{Binding GoCommand}" Content="转到"/>
+            <Grid Grid.Column="5" Width="12"/>
+            <Grid Grid.Column="6">
+              <TextBox Text="{Binding FilterText}" Watermark="筛选当前目录…" x:Name="FilterBox"/>
+            </Grid>
+          </Grid>
+        </Border>
+
+        <!-- 操作行（窗口变窄时按钮自动换行，不再被裁剪） -->
+        <Border Grid.Row="1" Margin="0,0,0,10">
+          <WrapPanel>
+            <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding NewFolderCommand}" ToolTip.Tip="新建文件夹">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-acc" Data="{StaticResource IcFolderPlus}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="新建文件夹" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding NewFileCommand}" ToolTip.Tip="新建空文件">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-acc" Data="{StaticResource IcFilePlus}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="新建文件" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="ghost" Margin="0,0,8,8" Click="OnUploadFiles" ToolTip.Tip="上传文件">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-acc" Data="{StaticResource IcUpload}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="上传" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="ghost" Margin="0,0,8,8" Click="OnUploadFolder" ToolTip.Tip="上传整个文件夹（递归）">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-acc" Data="{StaticResource IcUpload}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="上传文件夹" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="ghost" Margin="0,0,8,8" Click="OnDownload" ToolTip.Tip="下载选中项">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-acc" Data="{StaticResource IcDownload}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="下载" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding EditSelectedCommand}" ToolTip.Tip="编辑选中文件（也可双击）">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-acc" Data="{StaticResource IcFileText}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="编辑" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Border Width="1" Height="20" Margin="0,7,8,8" Background="{DynamicResource C_Border}"/>
+            <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding RenameSelectedCommand}" ToolTip.Tip="重命名">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-dim" Data="{StaticResource IcPencil}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="重命名" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding PropertiesSelectedCommand}" ToolTip.Tip="属性">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-dim" Data="{StaticResource IcInfo}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock Text="属性" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="danger" Margin="0,0,8,8" Command="{Binding DeleteSelectedCommand}" Height="34"
+                    Padding="18,6" ToolTip.Tip="删除选中项 (Delete)">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Stretch="Uniform" Data="{StaticResource IcTrash}" Stroke="#ffffff" StrokeThickness="1.7"
+                      StrokeJoin="Round" StrokeLineCap="Round" VerticalAlignment="Center"
+                      Fill="Transparent" Width="15" Height="15"/>
+                <TextBlock Text="删除" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="ghost" Margin="0,0,0,8" Command="{Binding RefreshCommand}"
+                    ToolTip.Tip="显示/隐藏 隐藏文件" x:Name="HiddenToggle" Click="OnToggleHidden">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Classes="icon c-dim" Data="{StaticResource IcEye}" Width="15" Height="15" VerticalAlignment="Center"/>
+                <TextBlock x:Name="HiddenText" Text="显示隐藏" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+          </WrapPanel>
+        </Border>
+
+        <!-- 文件列表 -->
+        <Border Grid.Row="2" Classes="card" Padding="0" ClipToBounds="True" MinHeight="180">
+          <DataGrid x:Name="FilesGrid" ItemsSource="{Binding Entries}"
+                    AutoGenerateColumns="False" IsReadOnly="True"
+                    CanUserResizeColumns="True" HeadersVisibility="Column"
+                    GridLinesVisibility="None" SelectionMode="Extended"
+                    SelectionChanged="OnSelectionChanged"
+                    DoubleTapped="OnGridDoubleTapped"
+                    KeyDown="OnGridKeyDown"
+                    Background="Transparent" BorderThickness="0"
+                    RowBackground="Transparent">
+            <DataGrid.Columns>
+              <DataGridTemplateColumn Header="名称" Width="3*">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="vm:FileEntryViewModel">
+                    <StackPanel Orientation="Horizontal" Spacing="9" Background="Transparent"
+                                ContextMenu="{StaticResource EntryMenu}">
+                      <Path Classes="icon" Data="{Binding Icon}" Stroke="{Binding IconBrush}"
+                            Width="16" Height="16" VerticalAlignment="Center"/>
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="大小" Width="110">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="vm:FileEntryViewModel">
+                    <TextBlock Text="{Binding SizeText}" Foreground="{DynamicResource C_Fg2}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               VerticalAlignment="Center"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="权限" Width="120">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="vm:FileEntryViewModel">
+                    <TextBlock Text="{Binding PermsText}" Foreground="{DynamicResource C_Fg2}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               VerticalAlignment="Center"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="修改时间" Width="150">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="vm:FileEntryViewModel">
+                    <TextBlock Text="{Binding DateText}" Foreground="{DynamicResource C_Fg2}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               VerticalAlignment="Center"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Border>
+
+        <!-- 状态行 -->
+        <Border Grid.Row="3" Margin="0,8,0,0">
+          <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="14">
+            <TextBlock Text="{Binding InfoText}" Classes="t-dim"/>
+            <Border Grid.Column="1" Classes="badge" IsVisible="{Binding IsSudoDir}"
+                    Background="#2a2312" ToolTip.Tip="当前目录当前用户无权访问，正在以 sudo 提权浏览（只读为主；删除/保存会按需提权）">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <Path Stretch="Uniform" Data="{StaticResource IcKey}" Stroke="{DynamicResource C_Warn}"
+                      StrokeThickness="1.6" StrokeJoin="Round" Width="11" Height="11" VerticalAlignment="Center"/>
+                <TextBlock Text="sudo 提权访问" FontSize="10.5" Foreground="{DynamicResource C_Warn}"/>
+              </StackPanel>
+            </Border>
+            <TextBlock Grid.Column="2" Text="{Binding ErrorText}" FontSize="12"
+                       Foreground="{DynamicResource C_Danger}" TextWrapping="Wrap"/>
+            <TextBlock Grid.Column="4" Text="支持多选 · Delete 删除 · 双击目录进入 / 文件编辑（右侧新增标签页） · Ctrl+S 保存 · 拖放上传"
+                       Classes="t-dim" FontSize="11" HorizontalAlignment="Right"
+                       TextTrimming="CharacterEllipsis"/>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <!-- 编辑标签页（每个文件一个，保持活动：切换标签不丢光标与滚动位置）
+           注意：ItemsPanel 必须是 Panel/Grid 这类“按可用尺寸叠放”的面板。
+           默认的 StackPanel 会以无限高度测量子项，导致 EditorView/TextBox
+           被撑到全文高度，内部滚动条永远不会出现（内容超出后不可见）。 -->
+      <ItemsControl ItemsSource="{Binding EditorTabs}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <Panel/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:EditorTabViewModel">
+            <Grid IsVisible="{Binding IsSelected}"
+                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+              <v:EditorView/>
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Panel>
+  </Grid>
+</UserControl>

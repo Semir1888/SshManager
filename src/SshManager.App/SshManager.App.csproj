@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SshManager.App</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>SshManager</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- exe / 窗口图标（Avalonia 自动把该 ico 设为所有窗口的默认图标） -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- 编译期校验所有绑定，提前暴露 XAML 错误 -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.23" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.23" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.23" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.23" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.23" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SshManager.Core\SshManager.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 侧栏 / 欢迎页 logo（axaml 会自动打包，png 需显式声明） -->
+    <AvaloniaResource Include="Assets\app.png" />
+  </ItemGroup>
+
+</Project>

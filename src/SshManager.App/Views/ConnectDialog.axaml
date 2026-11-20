@@ -1,0 +1,65 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SshManager.App.ViewModels"
+        x:Class="SshManager.App.Views.ConnectDialog"
+        x:DataType="vm:ConnectDialogViewModel"
+        Title="连接服务器" Width="470" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <StackPanel Margin="22" Spacing="12">
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <Border Background="{DynamicResource C_Sel}" CornerRadius="8" Width="38" Height="38">
+        <Path Classes="icon c-acc" Data="{StaticResource IcServer}" Width="20" Height="20"
+              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Classes="t-title" Text="连接服务器"/>
+        <TextBlock Classes="t-dim" Text="支持密码 / 私钥登录 · 密码不落盘"/>
+      </StackPanel>
+    </StackPanel>
+
+    <TextBox Text="{Binding Name}" Watermark="名称（可选，如：公司测试机）"/>
+
+    <Grid ColumnDefinitions="*,86" ColumnSpacing="10">
+      <TextBox Grid.Column="0" Text="{Binding Host}" Watermark="主机（IP 或域名）" x:Name="HostBox"/>
+      <TextBox Grid.Column="1" Text="{Binding Port}" Watermark="端口"/>
+    </Grid>
+
+    <TextBox Text="{Binding Username}" Watermark="用户名"/>
+
+    <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,2,0,0">
+      <RadioButton GroupName="auth" Content="密码登录" IsChecked="{Binding AuthPassword}"/>
+      <RadioButton GroupName="auth" Content="私钥登录" IsChecked="{Binding AuthKey}"/>
+    </StackPanel>
+
+    <StackPanel Spacing="10" IsVisible="{Binding AuthPassword}">
+      <TextBox x:Name="PwBox" Watermark="密码" PasswordChar="*"/>
+      <TextBlock Classes="t-dim" Text="密码只保存在本次会话内存中，不会写入磁盘。"/>
+    </StackPanel>
+
+    <StackPanel Spacing="10" IsVisible="{Binding AuthKey}">
+      <Grid ColumnDefinitions="*,78" ColumnSpacing="10">
+        <TextBox x:Name="KeyPathBox" Text="{Binding KeyPath}" Watermark="私钥文件路径"/>
+        <Button Grid.Column="1" Classes="ghost" Content="浏览…" Click="OnBrowseKey"/>
+      </Grid>
+      <TextBox x:Name="KeyPwBox" Watermark="私钥口令（可选）" PasswordChar="*"
+              />
+    </StackPanel>
+
+    <StackPanel Spacing="6">
+      <CheckBox Content="保存到左侧服务器列表" IsChecked="{Binding SaveToProfiles}"/>
+      <CheckBox Content="无权限目录自动 sudo 提权访问（推荐，可在文件管理中关闭）"
+                IsChecked="{Binding AutoSudo}"/>
+    </StackPanel>
+
+    <TextBlock x:Name="ErrorText" TextWrapping="Wrap"
+               Foreground="{DynamicResource C_Danger}" FontSize="12.5"
+               Text="{Binding Error}"/>
+
+    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,4,0,0">
+      <Button Classes="ghost" Content="取消" MinWidth="86" Click="OnCancel"/>
+      <Button Classes="primary" x:Name="ConnectButton" Content="{Binding ConnectText}"
+              MinWidth="110" Click="OnConnect" IsEnabled="{Binding !IsConnecting}"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

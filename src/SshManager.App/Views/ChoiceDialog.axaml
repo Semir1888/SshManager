@@ -1,0 +1,17 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SshManager.App.Views.ChoiceDialog"
+        Title="请选择" Width="460" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <StackPanel Margin="22" Spacing="14">
+    <TextBlock x:Name="TitleText" Classes="t-title"/>
+    <TextBlock x:Name="MessageText" TextWrapping="Wrap" LineHeight="21"
+               Foreground="{DynamicResource C_Fg2}"/>
+    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,6,0,0">
+      <Button Classes="ghost" Content="取消" MinWidth="86" Click="OnCancel"/>
+      <Button x:Name="DiscardButton" Classes="ghost" Content="不保存" MinWidth="86" Click="OnDiscard"/>
+      <Button x:Name="OkButton" Classes="primary" Content="确定" MinWidth="96" Click="OnOk"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

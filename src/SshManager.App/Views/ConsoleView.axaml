@@ -1,0 +1,182 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             xmlns:v="using:SshManager.App.Views"
+             xmlns:services="using:SshManager.App.Services"
+             x:Class="SshManager.App.Views.ConsoleView"
+             x:DataType="vm:ConsoleViewModel">
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ══════════ 模式切换 + 说明（窄窗口自动换行） ══════════ -->
+    <Border Grid.Row="0" Margin="0,0,0,10">
+      <WrapPanel>
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                    Margin="0,0,0,6">
+          <TextBlock Text="模式：" Classes="t-dim" VerticalAlignment="Center"/>
+          <!-- 关 = 单次执行（默认）；开 = 交互终端（PTY） -->
+          <ToggleButton Theme="{StaticResource AntdSwitchTheme}"
+                        IsChecked="{Binding IsPtyMode, Mode=TwoWay}"
+                        VerticalAlignment="Center"
+                        ToolTip.Tip="关：单次执行（默认）｜开：交互终端（PTY）"/>
+          <Path Classes="icon c-dim" Data="{StaticResource IcTerminal}" Width="14" Height="14"
+                VerticalAlignment="Center" IsVisible="{Binding !IsPtyMode}"/>
+          <TextBlock Text="单次执行" VerticalAlignment="Center" IsVisible="{Binding !IsPtyMode}"/>
+          <Path Classes="icon c-acc" Data="{StaticResource IcPlay}" Width="12" Height="12"
+                VerticalAlignment="Center" IsVisible="{Binding IsPtyMode}"/>
+          <TextBlock Text="交互终端（PTY）" VerticalAlignment="Center" IsVisible="{Binding IsPtyMode}"/>
+        </StackPanel>
+        <TextBlock Text="{Binding ModeHint}" Classes="t-dim" FontSize="11"
+                   VerticalAlignment="Center" Margin="0,0,10,6" MaxWidth="420"
+                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ModeHint}"/>
+        <Button Classes="ghost" Height="30" Padding="12,3" FontSize="12" Margin="0,0,0,6"
+                Click="OnOpenLibrary"
+                IsVisible="{Binding !IsPtyMode}"
+                ToolTip.Tip="分类浏览 80+ 条常用命令（含中文说明）">
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+            <Path Classes="icon c-acc" Data="{StaticResource IcBook}" Width="14" Height="14"
+                  VerticalAlignment="Center"/>
+            <TextBlock Text="命令库…" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+      </WrapPanel>
+    </Border>
+
+    <!-- ══════════ 内容区：两种模式叠放（Grid 子元素拉伸填满，PTY 终端横向撑满） ══════════ -->
+    <Grid Grid.Row="1">
+
+      <!-- ═══════ 交互终端（PTY）模式 ═══════ -->
+      <Border IsVisible="{Binding IsPtyMode}" Margin="0,0,0,10"
+              Classes="card" Padding="0" ClipToBounds="True">
+        <DockPanel>
+          <!-- 终端工具条（窄窗口自动换行） -->
+          <Border DockPanel.Dock="Top" Background="{DynamicResource C_Card2}" CornerRadius="10,10,0,0"
+                  Padding="12,7,12,7">
+            <WrapPanel>
+              <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center"
+                          Margin="0,0,10,6">
+                <Path Classes="icon c-acc" Data="{StaticResource IcTerminal}" Width="15" Height="15"
+                      VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Pty.Title}" Classes="t-h2" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" MaxWidth="280"
+                           ToolTip.Tip="{Binding Pty.Title}"/>
+                <Border Classes="badge" VerticalAlignment="Center"
+                        IsVisible="{Binding Pty.IsConnected}">
+                  <TextBlock Text="已连接" FontSize="11" Foreground="{DynamicResource C_Acc}"/>
+                </Border>
+                <Border Classes="badge" VerticalAlignment="Center"
+                        IsVisible="{Binding !Pty.IsConnected}">
+                  <TextBlock Text="未连接" FontSize="11" Classes="t-dim"/>
+                </Border>
+                <Button Classes="ghost" Height="26" Padding="10,3" FontSize="12"
+                        Command="{Binding PtyClearCommand}" Content="清屏"
+                        ToolTip.Tip="清空终端与回滚历史"/>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                          Margin="0,0,0,6">
+                <Button Classes="ghost" Height="26" Padding="10,3" FontSize="12"
+                        Command="{Binding PtyCtrlCCommand}" Content="Ctrl+C"
+                        ToolTip.Tip="向终端发送中断信号"/>
+                <Button Classes="ghost" Height="26" Padding="10,3" FontSize="12"
+                        Command="{Binding PtyReopenCommand}" Content="重新打开"
+                        ToolTip.Tip="关闭当前 PTY 会话并新建一个（shell 状态重置）"/>
+              </StackPanel>
+            </WrapPanel>
+          </Border>
+          <TextBlock DockPanel.Dock="Bottom" Text="{Binding Pty.StatusText}" Classes="t-dim"
+                     FontSize="11" Margin="12,4,12,6" TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding Pty.StatusText}"/>
+          <!-- 终端渲染区（键盘直接输入，滚轮回看；背景跟随应用主题） -->
+          <Border Background="{DynamicResource C_TermBg}" CornerRadius="0,0,10,10" ClipToBounds="True">
+            <v:TerminalControl Terminal="{Binding Pty}"/>
+          </Border>
+        </DockPanel>
+      </Border>
+
+      <!-- ═══════ 单次执行模式 ═══════ -->
+      <DockPanel IsVisible="{Binding !IsPtyMode}">
+        <!-- 快捷命令 -->
+        <Border DockPanel.Dock="Top" Margin="0,0,0,10">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <TextBlock Text="常用命令：" Classes="t-dim" VerticalAlignment="Center"/>
+              <TextBlock Grid.Column="1" Text="悬停快捷按钮可查看对应命令 · 命令库中双击条目即填入"
+                         Classes="t-dim" FontSize="11" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis"/>
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Presets}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="services:QuickCommand">
+                  <Button Classes="ghost" Height="27" Padding="11,3" FontSize="12" Margin="0,0,8,6"
+                          ToolTip.Tip="{Binding Command}"
+                          Command="{Binding $parent[UserControl].DataContext.UsePresetCommand}"
+                          CommandParameter="{Binding}">
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- 输入行 -->
+        <Border DockPanel.Dock="Bottom" Margin="0,10,0,0">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+            <TextBlock Text="$" FontFamily="{StaticResource MonoFont}" FontSize="14"
+                       Foreground="{DynamicResource C_Acc}" FontWeight="Bold" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="1" Text="{Binding Input}" x:Name="InputBox" MinWidth="120"
+                     FontFamily="{StaticResource MonoFont}" FontSize="13"
+                     Watermark="输入命令后回车执行 · ↑↓ 翻历史" KeyDown="OnInputKeyDown"/>
+            <Button Grid.Column="2" Classes="primary" Command="{Binding RunCommand}" MinWidth="88"
+                    IsEnabled="{Binding !IsRunning}">
+              <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                <Path Stretch="Uniform" Data="{StaticResource IcPlay}" Stroke="{DynamicResource C_AccFg}" StrokeThickness="1.7"
+                      StrokeJoin="Round" Fill="Transparent" VerticalAlignment="Center" Width="13" Height="13"/>
+                <TextBlock Text="运行" VerticalAlignment="Center"/>
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="3" Classes="danger" Command="{Binding StopCommand}" MinWidth="88"
+                    IsVisible="{Binding IsRunning}" Content="停止"/>
+          </Grid>
+        </Border>
+
+        <!-- 输出区 -->
+        <ScrollViewer x:Name="OutScroller">
+          <ItemsControl ItemsSource="{Binding Runs}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandRunViewModel">
+                <Border Classes="card sub" Margin="0,0,0,10" Padding="14,10">
+                  <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+                      <Path Classes="icon c-acc" Data="{StaticResource IcTerminal}" Width="14" Height="14"
+                            VerticalAlignment="Center"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Command}" FontFamily="{StaticResource MonoFont}"
+                                 FontSize="12.5" FontWeight="SemiBold" TextWrapping="Wrap"
+                                 VerticalAlignment="Center"/>
+                      <TextBlock Grid.Column="2" Text="{Binding StartedAtText}" FontSize="11"
+                                 Foreground="{DynamicResource C_Fg3}" VerticalAlignment="Center"/>
+                      <Border Grid.Column="3" Classes="badge" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Status}" FontSize="11" Foreground="{Binding StatusBrush}"/>
+                      </Border>
+                      <Button Grid.Column="4" Classes="toolmini" Command="{Binding StopRunCommand}"
+                              IsVisible="{Binding IsRunningStatus}" ToolTip.Tip="停止该命令">
+                        <Path Classes="icon c-danger" Data="{StaticResource IcStop}" Width="13" Height="13"/>
+                      </Button>
+                    </Grid>
+                    <TextBlock Text="{Binding Out.Text}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               Foreground="{DynamicResource C_Fg2}" TextWrapping="Wrap"
+                               IsVisible="{Binding HasOutput}"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Grid>
+  </Grid>
+</UserControl>

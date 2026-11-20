@@ -1,0 +1,90 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/SshManager.sln",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "run",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/src/SshManager.App/SshManager.App.csproj"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-win64 (小体积, 需.NET8运行时)",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/src/SshManager.App/SshManager.App.csproj",
+        "-c", "Release",
+        "-r", "win-x64",
+        "--self-contained", "false",
+        "-p:PublishSingleFile=true",
+        "-o", "${workspaceFolder}/publish/win-x64"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-win64-Portable (自带运行时, 免安装)",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/src/SshManager.App/SshManager.App.csproj",
+        "-c", "Release",
+        "-r", "win-x64",
+        "--self-contained", "true",
+        "-p:PublishSingleFile=true",
+        "-p:IncludeNativeLibrariesForSelfExtract=true",
+        "-o", "${workspaceFolder}/publish/win-x64-portable"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-linux64 (小体积, 需.NET8运行时)",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/src/SshManager.App/SshManager.App.csproj",
+        "-c", "Release",
+        "-r", "linux-x64",
+        "--self-contained", "false",
+        "-p:PublishSingleFile=true",
+        "-o", "${workspaceFolder}/publish/linux-x64"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-linux64-Portable (自带运行时, 免安装)",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/src/SshManager.App/SshManager.App.csproj",
+        "-c", "Release",
+        "-r", "linux-x64",
+        "--self-contained", "true",
+        "-p:PublishSingleFile=true",
+        "-p:IncludeNativeLibrariesForSelfExtract=true",
+        "-o", "${workspaceFolder}/publish/linux-x64-portable"
+      ],
+      "problemMatcher": "$msCompile"
+    }
+  ]
+}

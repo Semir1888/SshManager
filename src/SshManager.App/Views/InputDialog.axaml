@@ -1,0 +1,18 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SshManager.App.Views.InputDialog"
+        Title="输入" Width="440" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <StackPanel Margin="22" Spacing="12">
+    <TextBlock x:Name="TitleText" Classes="t-title"/>
+    <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="{DynamicResource C_Fg2}"/>
+    <TextBox x:Name="ValueBox" Watermark=""/>
+    <TextBox x:Name="PwBox" Watermark="密码" IsVisible="False"
+             PasswordChar="*"/>
+    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,6,0,0">
+      <Button Classes="ghost" Content="取消" MinWidth="86" Click="OnCancel"/>
+      <Button Classes="primary" x:Name="OkButton" Content="确定" MinWidth="86" Click="OnOk"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

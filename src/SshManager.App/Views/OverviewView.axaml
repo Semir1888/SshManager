@@ -1,0 +1,158 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             x:Class="SshManager.App.Views.OverviewView"
+             x:DataType="vm:OverviewViewModel">
+  <UserControl.Styles>
+    <!-- 系统信息键值行：统一行距/垂直居中，避免中文字体回退时左右基线出现 1px 级错位 -->
+    <Style Selector="#SystemKvGrid TextBlock">
+      <Setter Property="LineHeight" Value="18"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+  </UserControl.Styles>
+  <DockPanel>
+    <Border DockPanel.Dock="Top">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="12">
+        <TextBlock Classes="t-title" Text="系统概览" VerticalAlignment="Center"/>
+        <ProgressBar Grid.Column="1" Classes="slim" Width="16" IsIndeterminate="True"
+                     IsVisible="{Binding IsLoading}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="2" Text="{Binding UpdatedText}" Classes="t-dim"
+                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+        <CheckBox Grid.Column="3" Content="自动刷新 (5s)" IsChecked="{Binding AutoRefresh}"
+                  VerticalAlignment="Center"/>
+        <Button Grid.Column="4" Classes="ghost" Command="{Binding RefreshCommand}" MinWidth="92">
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+            <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" Width="14" Height="14"
+                  VerticalAlignment="Center"/>
+            <TextBlock Text="刷新" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Border>
+
+    <ScrollViewer>
+      <StackPanel Spacing="14" Margin="0,16,0,0">
+        <Grid ColumnDefinitions="1.6*,1*,1*,1*" ColumnSpacing="14">
+          <!-- 系统信息 -->
+          <Border Classes="card" Grid.Column="0">
+            <StackPanel Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="9" Margin="0,0,0,8" VerticalAlignment="Center">
+                <Path Classes="icon c-acc" Data="{StaticResource IcMonitor}" VerticalAlignment="Center"/>
+                <TextBlock Classes="t-h2" Text="系统" VerticalAlignment="Center"/>
+              </StackPanel>
+              <Grid x:Name="SystemKvGrid" ColumnDefinitions="Auto,*" ColumnSpacing="12"
+                    RowDefinitions="26,26,26,26,26,26,26,26">
+                <TextBlock Classes="t-dim" Text="发行版" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Column="1" Text="{Binding Os}" VerticalAlignment="Center" FontSize="12.5"
+                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Os}"/>
+                <TextBlock Grid.Row="1" Classes="t-dim" Text="内核" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Kernel}" VerticalAlignment="Center"
+                           FontSize="12.5" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock Grid.Row="2" Classes="t-dim" Text="架构" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Arch}" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="3" Classes="t-dim" Text="主机名" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Hostname}" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="4" Classes="t-dim" Text="内网地址" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding LanIp}" VerticalAlignment="Center"
+                           FontSize="12.5" FontFamily="{StaticResource MonoFont}"/>
+                <TextBlock Grid.Row="5" Classes="t-dim" Text="运行时长" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding Uptime}" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="6" Classes="t-dim" Text="启动时间" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding BootTime}" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="7" Classes="t-dim" Text="CPU 型号" VerticalAlignment="Center" FontSize="12.5"/>
+                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding CpuModel}" VerticalAlignment="Center"
+                           FontSize="12.5" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding CpuModel}"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- CPU -->
+          <Border Classes="card" Grid.Column="1">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <Path Classes="icon c-warn" Data="{StaticResource IcCpu}"/>
+                <TextBlock Classes="t-h2" Text="CPU"/>
+              </StackPanel>
+              <TextBlock Text="{Binding CpuText}" FontSize="27" FontWeight="Bold"
+                         Foreground="{DynamicResource C_Acc}"/>
+              <ProgressBar Classes="slim" Value="{Binding CpuPercent}" Maximum="100"/>
+              <TextBlock Classes="t-dim" Text="top 采样的瞬时占用率" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+
+          <!-- 内存 -->
+          <Border Classes="card" Grid.Column="2">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <Path Classes="icon c-info" Data="{StaticResource IcMemory}"/>
+                <TextBlock Classes="t-h2" Text="内存"/>
+              </StackPanel>
+              <TextBlock Text="{Binding MemPercentText}" FontSize="27" FontWeight="Bold"
+                         Foreground="{DynamicResource C_Acc}"/>
+              <ProgressBar Classes="slim" Value="{Binding MemPercent}" Maximum="100"/>
+              <TextBlock Classes="t-dim" Text="{Binding MemText}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+
+          <!-- 磁盘 -->
+          <Border Classes="card" Grid.Column="3">
+            <StackPanel Spacing="10">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <Path Classes="icon c-acc" Data="{StaticResource IcDrive}"/>
+                <TextBlock Classes="t-h2" Text="磁盘 /"/>
+              </StackPanel>
+              <TextBlock Text="{Binding DiskPercentText}" FontSize="27" FontWeight="Bold"
+                         Foreground="{DynamicResource C_Acc}"/>
+              <ProgressBar Classes="slim" Value="{Binding DiskPercent}" Maximum="100"/>
+              <TextBlock Classes="t-dim" Text="{Binding DiskText}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <Grid ColumnDefinitions="1.6*,1*,1*" ColumnSpacing="14">
+          <!-- 快捷命令 -->
+          <Border Classes="card" Grid.Column="0">
+            <StackPanel Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="9" Margin="0,0,0,6">
+                <Path Classes="icon c-acc" Data="{StaticResource IcBolt}"/>
+                <TextBlock Classes="t-h2" Text="常用命令（在终端执行）"/>
+              </StackPanel>
+              <WrapPanel>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="df -h" Content="磁盘占用 df -h"/>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="free -h" Content="内存 free -h"/>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="top -bn1 | head -n 15" Content="进程 top"/>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="ss -tulpn" Content="端口监听 ss -tulpn"/>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="systemctl --failed" Content="失败服务"/>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="journalctl -n 50 --no-pager" Content="最近日志"/>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="uptime" Content="uptime"/>
+                <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding QuickRunCommand}" CommandParameter="ip -br a" Content="网卡地址"/>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="card" Grid.Column="1">
+            <StackPanel Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="9" Margin="0,0,0,6">
+                <Path Classes="icon c-info" Data="{StaticResource IcInfo}"/>
+                <TextBlock Classes="t-h2" Text="使用提示"/>
+              </StackPanel>
+              <TextBlock Classes="t-dim" TextWrapping="Wrap" LineHeight="19"
+                         Text="· 终端支持 sudo 命令，将自动注入已保存的 sudo 密码&#10;· 文件管理支持拖放上传（文件/文件夹）&#10;· 应用中心可查看并卸载 apt / snap / flatpak 三类应用&#10;· 所有敏感操作（删除/卸载）均有二次确认"/>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="card" Grid.Column="2">
+            <StackPanel Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="9" Margin="0,0,0,6">
+                <Path Classes="icon c-warn" Data="{StaticResource IcShield}"/>
+                <TextBlock Classes="t-h2" Text="安全设计"/>
+              </StackPanel>
+              <TextBlock Classes="t-dim" TextWrapping="Wrap" LineHeight="19"
+                         Text="· 密码只保存在内存，绝不写入磁盘&#10;· 首次连接会校验服务器指纹（防中间人）&#10;· 删除、卸载等操作需要二次确认&#10;· sudo 密码通过 stdin 传递，不暴露在命令行参数中"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

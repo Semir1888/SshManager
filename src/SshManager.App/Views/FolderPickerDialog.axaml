@@ -1,0 +1,47 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SshManager.App.Views.FolderPickerDialog"
+        Title="选择目录" Width="500" Height="540" CanResize="True"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <DockPanel Margin="18">
+    <StackPanel DockPanel.Dock="Top" Spacing="10">
+      <TextBlock Classes="t-title" Text="选择服务器目录"/>
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <TextBox x:Name="PathBox" Watermark="输入绝对路径，如 /home/zg/ssts-bundle"
+                 FontFamily="{StaticResource MonoFont}" FontSize="12.5"/>
+        <Button Grid.Column="1" Classes="ghost" Content="进入" MinWidth="64" Click="OnGo"/>
+        <Button Grid.Column="2" Classes="ghost" Content="上级" MinWidth="64" Click="OnUp"/>
+      </Grid>
+    </StackPanel>
+
+    <Grid DockPanel.Dock="Bottom" Margin="0,12,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <TextBlock x:Name="StatusText" Classes="t-dim" Text="" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis"/>
+      <Button Grid.Column="1" Classes="ghost" Content="取消" MinWidth="88" Margin="0,0,10,0"
+              Click="OnCancel"/>
+      <Button Grid.Column="2" Classes="primary" x:Name="OkButton" Content="选择此目录" MinWidth="110"
+              Click="OnOk"/>
+    </Grid>
+
+    <Border Classes="card" Margin="0,12,0,0" Padding="4" MinHeight="200">
+      <ListBox x:Name="DirList" Background="Transparent" BorderThickness="0" Padding="2"
+               DoubleTapped="OnItemDoubleTapped">
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="CornerRadius" Value="6"/>
+          </Style>
+          <Style Selector="ListBoxItem:pointerover">
+            <Setter Property="Background" Value="{DynamicResource C_Hover}"/>
+          </Style>
+        </ListBox.Styles>
+      </ListBox>
+    </Border>
+  </DockPanel>
+</Window>

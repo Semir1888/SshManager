@@ -1,0 +1,331 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             x:Class="SshManager.App.Views.DockerView"
+             x:DataType="vm:DockerViewModel">
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+
+    <!-- ══════════ 状态横幅（窄窗口自动换行） ══════════ -->
+    <Border Grid.Row="0" Classes="card sub" Padding="14,8" Margin="0,0,0,10">
+      <WrapPanel>
+        <Path Classes="icon c-acc" Data="{StaticResource IcDocker}" Width="20" Height="20"
+              VerticalAlignment="Center" Margin="0,0,12,4"/>
+        <TextBlock Text="{Binding VersionText}" FontWeight="SemiBold" FontSize="13.5"
+                   VerticalAlignment="Center" Margin="0,0,12,4" IsVisible="{Binding IsReady}"/>
+        <Border Classes="badge" VerticalAlignment="Center" Margin="0,0,12,4"
+                IsVisible="{Binding SudoMode}"
+                ToolTip.Tip="当前用户不在 docker 组，docker 命令经 sudo 执行（密码自动经 stdin 注入）">
+          <TextBlock Text="sudo 模式" FontSize="11" Foreground="{DynamicResource C_Warn}"/>
+        </Border>
+        <ItemsControl ItemsSource="{Binding DiskUsageTexts}"
+                      IsVisible="{Binding IsReady}" VerticalAlignment="Center"
+                      Margin="0,0,12,4">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="8"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <Border Classes="badge" Padding="8,3">
+                <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource C_Fg2}"
+                           FontFamily="{StaticResource MonoFont}"/>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <ProgressBar Classes="slim" Width="16" IsIndeterminate="True" Margin="0,0,12,4"
+                     IsVisible="{Binding IsLoading}" VerticalAlignment="Center"/>
+        <Button Classes="tool" Margin="0,0,8,4" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="刷新（容器 / 镜像 / 磁盘占用 / 资源）"
+                IsVisible="{Binding IsReady}">
+          <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" VerticalAlignment="Center"/>
+        </Button>
+        <ToggleButton Classes="tab" Content="自动刷新" Margin="0,0,0,4"
+                      IsChecked="{Binding AutoRefresh, Mode=TwoWay}"
+                      ToolTip.Tip="每 5 秒自动刷新（含 CPU / 内存占用）"
+                      IsVisible="{Binding IsReady}"/>
+      </WrapPanel>
+    </Border>
+
+    <!-- ══════════ 工具栏（就绪后显示；窄窗口自动换行） ══════════ -->
+    <Border Grid.Row="1" Margin="0,0,0,10" IsVisible="{Binding IsReady}">
+      <WrapPanel>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding ShowContainers, Mode=OneWay}"
+                      Command="{Binding SelectListCommand}" CommandParameter="containers"
+                      Content="{Binding ContainersCountText}"/>
+        <ToggleButton Classes="tab" Margin="0,0,8,8" IsChecked="{Binding ShowImages, Mode=OneWay}"
+                      Command="{Binding SelectListCommand}" CommandParameter="images"
+                      Content="{Binding ImagesCountText}"/>
+        <TextBox Width="220" Margin="0,0,8,8" Text="{Binding SearchText}"
+                 Watermark="搜索名称 / 镜像 / ID…"/>
+        <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding PruneImagesCommand}"
+                IsVisible="{Binding ShowImages}" Content="清理悬空镜像"
+                ToolTip.Tip="docker image prune -f：删除全部 &lt;none&gt;:&lt;none&gt; 悬空镜像"/>
+        <Button Classes="ghost" Margin="0,0,8,8" Command="{Binding SystemPruneCommand}"
+                IsVisible="{Binding ShowImages}" Content="深度清理"
+                ToolTip.Tip="docker system prune -f：已停止容器、悬空镜像、未用网络、构建缓存"/>
+        <Button Classes="ghost" Margin="0,0,0,8" Command="{Binding TogglePanelCommand}"
+                ToolTip.Tip="展开 / 收起日志与操作输出面板">
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+            <Path Classes="icon c-dim" Data="{StaticResource IcList}" Width="14" Height="14" VerticalAlignment="Center"/>
+            <TextBlock Text="日志 / 输出" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+      </WrapPanel>
+    </Border>
+
+    <!-- ══════════ 未就绪提示卡（未安装 / 检测中 / 失败） ══════════ -->
+    <Border Grid.Row="2" Classes="card" Padding="28,24" Margin="0,4,0,10"
+            IsVisible="{Binding !IsReady}" VerticalAlignment="Center"
+            HorizontalAlignment="Center">
+      <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="620">
+        <StackPanel Spacing="8" IsVisible="{Binding IsLoadingState}">
+          <TextBlock Text="正在检测服务器上的 Docker…" Classes="t-h2" HorizontalAlignment="Center"/>
+          <ProgressBar Classes="slim" IsIndeterminate="True" Width="220" HorizontalAlignment="Center"/>
+        </StackPanel>
+        <StackPanel Spacing="10" IsVisible="{Binding IsNotInstalled}">
+          <Path Classes="icon c-warn" Data="{StaticResource IcInfo}" Width="26" Height="26"
+                HorizontalAlignment="Center"/>
+          <TextBlock Text="服务器上未安装 Docker" Classes="t-h2" HorizontalAlignment="Center"/>
+          <TextBlock TextWrapping="Wrap" TextAlignment="Center" Classes="t-dim" LineHeight="20"
+                     Text="可在「终端」安装后回到本页点“重新检测”：apt 安装（sudo apt-get install -y docker.io）或官方脚本（curl -fsSL https://get.docker.com | sudo sh）。"/>
+        </StackPanel>
+        <StackPanel Spacing="10" IsVisible="{Binding IsFailedState}">
+          <Path Classes="icon c-danger" Data="{StaticResource IcInfo}" Width="26" Height="26"
+                HorizontalAlignment="Center"/>
+          <TextBlock Text="Docker 不可用" Classes="t-h2" HorizontalAlignment="Center"/>
+          <TextBlock Text="{Binding FailText}" TextWrapping="Wrap" TextAlignment="Center" LineHeight="20"
+                     Foreground="{DynamicResource C_Danger}"/>
+        </StackPanel>
+        <Button Classes="ghost" Command="{Binding RecheckCommand}" Content="重新检测"
+                HorizontalAlignment="Center" IsVisible="{Binding !IsLoadingState}"/>
+      </StackPanel>
+    </Border>
+
+    <!-- ══════════ 容器列表 ══════════ -->
+    <Border Grid.Row="2" Classes="card" Padding="0" ClipToBounds="True"
+            IsVisible="{Binding IsReady}" MinHeight="80">
+      <Panel>
+        <DataGrid x:Name="ContainersGrid" ItemsSource="{Binding Containers}"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserResizeColumns="True" HeadersVisibility="Column"
+                  GridLinesVisibility="None" SelectionMode="Single"
+                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                  Background="Transparent" BorderThickness="0" RowBackground="Transparent"
+                  IsVisible="{Binding ShowContainers}">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Header="状态" Width="96">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{Binding StateBrush}"/>
+                    <TextBlock Text="{Binding StateLabel}" FontSize="12" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="名称" Width="2*">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <StackPanel Orientation="Vertical" Spacing="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding NamesText}" FontSize="10.5" Foreground="{DynamicResource C_Fg3}"
+                               FontFamily="{StaticResource MonoFont}" TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding HasMultipleNames}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="镜像" Width="1.7*">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <TextBlock Text="{Binding Image}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             Foreground="{DynamicResource C_Fg2}" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="CPU" Width="78">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <TextBlock Text="{Binding CpuText}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             Foreground="{DynamicResource C_Info}" VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="内存" Width="190">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <TextBlock Text="{Binding MemText}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             Foreground="{DynamicResource C_Info}" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="端口" Width="1.5*">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <TextBlock Text="{Binding PortsText}" FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                             Foreground="{DynamicResource C_Fg2}" TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center" ToolTip.Tip="{Binding PortsText}"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="状态详情" Width="170">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <TextBlock Text="{Binding StatusText}" FontSize="11.5" Foreground="{DynamicResource C_Fg2}"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                             ToolTip.Tip="{Binding StatusText}"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="操作" Width="248">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerContainerViewModel">
+                  <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center"
+                              Background="Transparent">
+                    <Button Classes="toolmini" Command="{Binding StartCommand}" ToolTip.Tip="启动"
+                            IsVisible="{Binding !IsRunning}">
+                      <Path Classes="icon c-acc" Data="{StaticResource IcPlay}" Width="13" Height="13"/>
+                    </Button>
+                    <Button Classes="toolmini" Command="{Binding StopCommand}" ToolTip.Tip="停止"
+                            IsVisible="{Binding IsRunning}">
+                      <Path Classes="icon c-danger" Data="{StaticResource IcStop}" Width="13" Height="13"/>
+                    </Button>
+                    <Button Classes="toolmini" Command="{Binding RestartCommand}" ToolTip.Tip="重启"
+                            IsVisible="{Binding IsRunning}">
+                      <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" Width="13" Height="13"/>
+                    </Button>
+                    <Button Classes="toolmini" Command="{Binding LogsCommand}" ToolTip.Tip="查看日志">
+                      <Path Classes="icon c-dim" Data="{StaticResource IcList}" Width="13" Height="13"/>
+                    </Button>
+                    <Button Classes="toolmini" Command="{Binding ExecCommand}" ToolTip.Tip="把 docker exec 终端命令填入终端">
+                      <Path Classes="icon c-dim" Data="{StaticResource IcTerminal}" Width="13" Height="13"/>
+                    </Button>
+                    <Button Classes="toolmini" Command="{Binding RemoveCommand}" ToolTip.Tip="删除容器">
+                      <Path Classes="icon c-danger" Data="{StaticResource IcTrash}" Width="13" Height="13"/>
+                    </Button>
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- ══════════ 镜像列表 ══════════ -->
+        <DataGrid x:Name="ImagesGrid" ItemsSource="{Binding Images}"
+                  AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserResizeColumns="True" HeadersVisibility="Column"
+                  GridLinesVisibility="None" SelectionMode="Single"
+                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                  Background="Transparent" BorderThickness="0" RowBackground="Transparent"
+                  IsVisible="{Binding ShowImages}">
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Header="仓库" Width="2.4*">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerImageViewModel">
+                  <TextBlock Text="{Binding Repository}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="标签" Width="130">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerImageViewModel">
+                  <TextBlock Text="{Binding Tag}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             Foreground="{Binding TagBrush}" VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="镜像 ID" Width="150">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerImageViewModel">
+                  <TextBlock Text="{Binding ShortId}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             Foreground="{DynamicResource C_Fg2}" VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="大小" Width="110">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerImageViewModel">
+                  <TextBlock Text="{Binding Size}" FontFamily="{StaticResource MonoFont}" FontSize="12"
+                             VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="创建于" Width="150">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerImageViewModel">
+                  <TextBlock Text="{Binding CreatedSince}" FontSize="12"
+                             Foreground="{DynamicResource C_Fg2}" VerticalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="操作" Width="100">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate x:DataType="vm:DockerImageViewModel">
+                  <Button Classes="ghost" Height="28" Padding="12,4" FontSize="12"
+                          Command="{Binding RemoveCommand}" Content="删除"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+          </DataGrid.Columns>
+        </DataGrid>
+      </Panel>
+    </Border>
+
+    <!-- ══════════ 日志面板拖拽条（与传输抽屉一致的交互） ══════════ -->
+    <Border Grid.Row="3" Height="8" Background="Transparent" Cursor="SizeNorthSouth"
+            IsVisible="{Binding PanelOpen}"
+            PointerPressed="OnLogGripPressed" PointerMoved="OnLogGripMoved"
+            PointerReleased="OnLogGripReleased" ToolTip.Tip="拖动调节日志面板高度">
+      <Border Width="44" Height="3" CornerRadius="2" VerticalAlignment="Center"
+              HorizontalAlignment="Center" Background="{DynamicResource C_Border}"/>
+    </Border>
+
+    <!-- ══════════ 日志 / 操作输出面板 ══════════ -->
+    <Border Grid.Row="4" Classes="card sub" Margin="0,2,0,0" Padding="12,8"
+            Height="{Binding LogPanelHeight}" IsVisible="{Binding PanelOpen}">
+      <DockPanel>
+        <Border DockPanel.Dock="Top" Margin="4,0,4,6">
+          <WrapPanel>
+            <TextBlock Classes="t-h2" Text="{Binding LogTitle}" VerticalAlignment="Center" Margin="0,0,10,6"/>
+            <TextBlock Text="尾部行数" Classes="t-dim" VerticalAlignment="Center" FontSize="12" Margin="0,0,6,6"/>
+            <ComboBox x:Name="TailBox" ItemsSource="{Binding TailChoices}"
+                      SelectedIndex="1" Width="96" Margin="0,0,10,6" SelectionChanged="OnTailChanged"/>
+            <ProgressBar Classes="slim" Width="16" IsIndeterminate="True" Margin="0,0,10,6"
+                         IsVisible="{Binding LogsLoading}" VerticalAlignment="Center"/>
+            <Button Classes="ghost" Height="28" Padding="12,4" Content="刷新" Margin="0,0,8,6"
+                    Command="{Binding RefreshLogsCommand}" IsVisible="{Binding !LogsLoading}"/>
+            <Button Classes="ghost" Height="28" Padding="12,4" Content="复制全部" Margin="0,0,8,6"
+                    Click="OnCopyAllLogs" ToolTip.Tip="复制全部日志（也可在日志区用 Ctrl+A / Ctrl+C）"/>
+            <Button Classes="ghost" Height="28" Padding="12,4" Content="清空" Margin="0,0,8,6"
+                    Command="{Binding ClearLogCommand}"/>
+            <Button Classes="tool" Command="{Binding TogglePanelCommand}" Margin="0,0,0,6"
+                    ToolTip.Tip="收起">
+              <Path Classes="icon c-dim" Data="{StaticResource IcChevronDown}" VerticalAlignment="Center"/>
+            </Button>
+          </WrapPanel>
+        </Border>
+        <ScrollViewer x:Name="LogScroller"
+                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <SelectableTextBlock x:Name="LogText" Text="{Binding Logs.Text}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               Foreground="{DynamicResource C_Fg2}" TextWrapping="NoWrap"
+                               Margin="4,0" Focusable="True" Cursor="IBeam"
+                               KeyDown="OnLogKeyDown"
+                               ToolTip.Tip="可选中复制：Ctrl+A 全选 · Ctrl+C 复制"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- ══════════ 底部提示行 ══════════ -->
+    <Border Grid.Row="5" Margin="0,8,0,0" IsVisible="{Binding IsReady}">
+      <TextBlock Text="操作结果与容器日志显示在底部面板 · “终端”页可填入 docker exec 命令 · 普通用户不在 docker 组时自动 sudo"
+                 Classes="t-dim" FontSize="11" HorizontalAlignment="Right"
+                 TextTrimming="CharacterEllipsis"/>
+    </Border>
+  </Grid>
+</UserControl>

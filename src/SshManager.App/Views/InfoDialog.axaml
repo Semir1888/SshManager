@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:SshManager.App.Services"
+        x:Class="SshManager.App.Views.InfoDialog"
+        Title="信息" Width="480" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <StackPanel Margin="22" Spacing="14">
+    <TextBlock x:Name="TitleText" Classes="t-title"/>
+    <ItemsControl x:Name="RowsList">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="services:DialogRow">
+          <Grid ColumnDefinitions="96,*" Margin="0,0,0,7">
+            <TextBlock Text="{Binding Key}" Foreground="{DynamicResource C_Fg2}" FontSize="12.5"
+                       VerticalAlignment="Top"/>
+            <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource C_Fg}" FontFamily="{StaticResource MonoFont}" FontSize="12.5"/>
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <Button Classes="primary" Content="关闭" MinWidth="96" HorizontalAlignment="Right" Click="OnClose"/>
+  </StackPanel>
+</Window>
