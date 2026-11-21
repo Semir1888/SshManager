@@ -49,6 +49,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private bool _isTabFiles;
     [ObservableProperty] private bool _isTabApps;
     [ObservableProperty] private bool _isTabDocker;
+    [ObservableProperty] private bool _isTabCompose;
     [ObservableProperty] private bool _isTabNetwork;
     [ObservableProperty] private bool _isTabConsole;
 
@@ -56,10 +57,11 @@ public partial class MainWindowViewModel : ViewModelBase
     public FileManagerViewModel? FilesVm { get; private set; }
     public AppCenterViewModel? AppsVm { get; private set; }
     public DockerViewModel? DockerVm { get; private set; }
+    public ComposeViewModel? ComposeVm { get; private set; }
     public NetworkViewModel? NetworkVm { get; private set; }
     public ConsoleViewModel? ConsoleVm { get; private set; }
 
-    public const string Version = "v0.8.0";
+    public const string Version = "v0.10.0";
 
     public MainWindowViewModel(ProfileStore store, TransferService transfers)
     {
@@ -151,6 +153,7 @@ public partial class MainWindowViewModel : ViewModelBase
         IsTabFiles = key == "files";
         IsTabApps = key == "apps";
         IsTabDocker = key == "docker";
+        IsTabCompose = key == "compose";
         IsTabNetwork = key == "network";
         IsTabConsole = key == "console";
         CurrentView = key switch
@@ -159,10 +162,15 @@ public partial class MainWindowViewModel : ViewModelBase
             "files" => FilesVm,
             "apps" => AppsVm,
             "docker" => DockerVm,
+            "compose" => ComposeVm,
             "network" => NetworkVm,
             "console" => ConsoleVm,
             _ => null,
         };
+
+        // 编排页按需激活：切走时停自动刷新，切回时探测/静默刷新
+        ComposeVm?.SetActive(key == "compose");
+        if (key == "compose") _ = ComposeVm?.ActivateAsync();
     }
 
     // ---------------------------------------------------------------- 连接管理
@@ -242,6 +250,7 @@ public partial class MainWindowViewModel : ViewModelBase
         FilesVm = new FileManagerViewModel(session, _transfers, this);
         AppsVm = new AppCenterViewModel(session);
         DockerVm = new DockerViewModel(session, this);
+        ComposeVm = new ComposeViewModel(session, this);
         NetworkVm = new NetworkViewModel(session, this);
         ConsoleVm = new ConsoleViewModel(session);
 
@@ -281,6 +290,9 @@ public partial class MainWindowViewModel : ViewModelBase
         AppsVm = null;
         DockerVm?.Cleanup();
         DockerVm = null;
+        ComposeVm?.Cleanup();
+        ComposeVm = null;
+        NetworkVm?.Cleanup();
         NetworkVm = null;
         ConsoleVm?.Cleanup(); // 关闭 PTY 交互终端
         ConsoleVm = null;
@@ -331,5 +343,21 @@ public partial class MainWindowViewModel : ViewModelBase
         if (ConsoleVm == null) return;
         SelectTabInternal("console");
         ConsoleVm.PrefillExternal(command);
+    }
+
+    /// <summary>跳到文件管理并打开指定远程文件（编排页“编辑 compose”复用现成编辑器）。</summary>
+    internal async Task OpenRemoteFileInFilesAsync(string path)
+    {
+        if (FilesVm == null) return;
+        SelectTabInternal("files");
+        await FilesVm.OpenRemotePathAsync(path);
+    }
+
+    /// <summary>跳到文件管理并导航到指定远程目录。</summary>
+    internal async Task OpenRemoteDirectoryInFilesAsync(string path)
+    {
+        if (FilesVm == null) return;
+        SelectTabInternal("files");
+        await FilesVm.NavigateToAsync(path);
     }
 }

@@ -307,6 +307,28 @@ public sealed class SshSession : IDisposable
         return $"echo {UnixPath.ShellQuote(pw)} | sudo -S -p '' {command} 2>&1";
     }
 
+    /// <summary>
+    /// sudo 包装但**不合并 stderr**。用于二进制 stdout（如拖出时的 tar 流），
+    /// 避免 WrapSudo 的 2&gt;&amp;1 把错误文本混进数据。
+    /// </summary>
+    public string WrapSudoRaw(string command)
+    {
+        if (IsRoot) return command;
+        var pw = SudoPassword ?? throw new SudoPasswordRequiredException("需要 sudo 密码：请在界面中设置后重试。");
+        return $"echo {UnixPath.ShellQuote(pw)} | sudo -S -p '' {command}";
+    }
+
+    /// <summary>
+    /// sudo 包装**整个复合命令**（通过 sh -c），用于含 &amp;&amp; / if / 管道的命令。
+    /// 直接拼在 sudo 后面时，shell 只会把第一段交给 sudo，后续段仍以普通用户执行。
+    /// </summary>
+    public string WrapSudoShell(string command)
+    {
+        if (IsRoot) return command;
+        var pw = SudoPassword ?? throw new SudoPasswordRequiredException("需要 sudo 密码：请在界面中设置后重试。");
+        return $"echo {UnixPath.ShellQuote(pw)} | sudo -S -p '' sh -c {UnixPath.ShellQuote(command)}";
+    }
+
     // ---------------------------------------------------------------- SFTP 交互操作
 
     /// <summary>构造目录列表（由 <see cref="SftpAttemptAsync{T}"/> 在 SFTP 锁内调用）。</summary>
@@ -695,6 +717,43 @@ public sealed class SshSession : IDisposable
             }
             var bytes = await tOut.ConfigureAwait(false);
             return (cmd.ExitStatus ?? -1, bytes, cmd.Error ?? "");
+        }
+        finally
+        {
+            try { cmd?.Dispose(); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// 执行命令并把 stdout **二进制原样**写入本地文件（拖出 tar 流使用）。
+    /// command 不能把 stderr 合并到 stdout（用 <see cref="WrapSudoRaw"/>，不要用 WrapSudo）。
+    /// </summary>
+    public async Task<(int ExitCode, string Error)> RunToFileAsync(
+        string command, string localPath, CancellationToken ct = default)
+    {
+        if (!IsConnected) throw new SessionDisconnectedException("连接已断开，请重新连接。");
+        SshCommand? cmd = null;
+        try
+        {
+            cmd = _ssh.CreateCommand(command);
+            cmd.CommandTimeout = TimeSpan.FromMinutes(30);
+            var outStream = cmd.OutputStream;
+            await using var fs = File.Create(localPath);
+            var tOut = Task.Run(() =>
+            {
+                outStream.CopyTo(fs);
+            }, ct);
+            try
+            {
+                await cmd.ExecuteAsync(ct).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                OnConnectionLost(ex.Message);
+                throw new SessionDisconnectedException("连接已断开：" + ex.Message);
+            }
+            await tOut.ConfigureAwait(false);
+            return (cmd.ExitStatus ?? -1, cmd.Error ?? "");
         }
         finally
         {

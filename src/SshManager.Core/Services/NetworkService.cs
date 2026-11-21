@@ -8,14 +8,30 @@ using SshManager.Core.Models;
 
 namespace SshManager.Core.Services;
 
-/// <summary>一份待下发的 IPv4 配置。</summary>
-/// <param name="Iface">网卡名。</param>
-/// <param name="UseDhcp">true=自动获取（DHCP）；false=静态。</param>
-/// <param name="Ip">静态 IP。</param>
-/// <param name="Prefix">前缀长度（如 24）。</param>
-/// <param name="Gateway">网关（可空 = 不设默认路由）。</param>
-/// <param name="Dns">DNS 服务器列表（可空）。</param>
-public sealed record IpConfig(string Iface, bool UseDhcp, string Ip, int Prefix, string Gateway, List<string> Dns);
+/// <summary>一份待下发的 IPv4 配置（支持多个地址、多 DNS、单网关）。</summary>
+public sealed record IpConfig(
+    string Iface,
+    IpMode Mode,
+    IReadOnlyList<Ipv4Address> Addresses,
+    string Gateway,
+    IReadOnlyList<string> Dns)
+{
+    public bool UseDhcp => Mode == IpMode.Dhcp;
+    public IReadOnlyList<string> Cidrs => Addresses.Select(a => a.Cidr).ToList();
+
+    /// <summary>旧版单地址构造器（兼容现有调用，后续 UI 改造完成后移除）。</summary>
+    public IpConfig(string iface, bool useDhcp, string ip, int prefix, string gateway, List<string> dns)
+        : this(
+            iface,
+            useDhcp ? IpMode.Dhcp : IpMode.Static,
+            useDhcp || string.IsNullOrWhiteSpace(ip)
+                ? Array.Empty<Ipv4Address>()
+                : new[] { new Ipv4Address(ip, prefix) },
+            gateway,
+            dns)
+    {
+    }
+}
 
 /// <summary>
 /// 服务器网络参数读取/修改（工程配置用）。
@@ -47,6 +63,13 @@ public sealed partial class NetworkService(SshSession session)
     public Task<CommandResult> RunSudoRawAsync(string command, TimeSpan? timeout = null)
         => RunAsync(_s.WrapSudo(command), timeout ?? TimeSpan.FromSeconds(90));
 
+    /// <summary>
+    /// 以 sudo 执行**整条 shell 命令**（含 &amp;&amp; / ; / 管道时必须用这个）。
+    /// 普通 WrapSudo 只会给第一段加 sudo，后续段仍以普通用户运行。
+    /// </summary>
+    public Task<CommandResult> RunSudoShellAsync(string command, TimeSpan? timeout = null)
+        => RunAsync(_s.WrapSudoShell(command), timeout ?? TimeSpan.FromSeconds(90));
+
     /// <summary>nmcli 是否可用（NetworkManager 是否安装）。</summary>
     public async Task<bool> HasNmAsync()
     {
@@ -63,8 +86,8 @@ public sealed partial class NetworkService(SshSession session)
 
     // ------------------------------------------------------------------ 网卡
 
-    /// <summary>列出物理/无线网卡（过滤 lo、docker、veth 等虚拟网卡）。</summary>
-    public async Task<List<NetInterface>> ListInterfacesAsync()
+    /// <summary>旧版运行时解析（保留作极老 iproute2 的回退）。</summary>
+    private async Task<List<NetInterface>> ListInterfacesLegacyAsync()
     {
         var result = new List<NetInterface>();
 
@@ -187,29 +210,35 @@ public sealed partial class NetworkService(SshSession session)
         if (cfg.UseDhcp)
         {
             var err = await sudoRun(
-                $"nmcli connection modify {Q(conName)} ipv4.method auto ipv4.addresses \"\" ipv4.gateway \"\" ipv4.dns \"\" ipv4.ignore-auto-dns no");
+                $"nmcli connection modify {Q(conName)} ipv4.method auto ipv4.addresses \"\" " +
+                "ipv4.gateway \"\" ipv4.dns \"\" ipv4.ignore-auto-dns no ipv4.routes \"\" connection.autoconnect yes");
             if (err != null) return err;
         }
         else
         {
-            var dnsPart = cfg.Dns.Count > 0 ? $" ipv4.dns {Q(string.Join(" ", cfg.Dns))} ipv4.ignore-auto-dns yes" : "";
+            if (cfg.Addresses.Count == 0) return "静态模式至少需要一个 IPv4 地址。";
+            var dnsPart = cfg.Dns.Count > 0
+                ? $" ipv4.dns {Q(string.Join(",", cfg.Dns))} ipv4.ignore-auto-dns yes"
+                : " ipv4.dns \"\" ipv4.ignore-auto-dns no";
             var gwPart = cfg.Gateway.Length > 0 ? $" ipv4.gateway {Q(cfg.Gateway)}" : " ipv4.gateway \"\"";
+            var addrs = string.Join(",", cfg.Cidrs);
             var err = await sudoRun(
                 $"nmcli connection modify {Q(conName)} ipv4.method manual " +
-                $"ipv4.addresses {Q($"{cfg.Ip}/{cfg.Prefix}")}{gwPart}{dnsPart}");
+                $"ipv4.addresses {Q(addrs)}{gwPart}{dnsPart} ipv4.routes \"\" connection.autoconnect yes");
             if (err != null) return err;
         }
         // nmcli up 会短暂断链再恢复
-        return await sudoRun($"nmcli connection up {Q(conName)}");
+        return await sudoRun($"nmcli --wait 60 connection up {Q(conName)}");
     }
 
-    /// <summary>生成 netplan YAML（networkd 渲染器）。</summary>
-    public static string BuildNetplanYaml(IpConfig cfg)
+    /// <summary>生成 netplan YAML（支持多个 IPv4、多 DNS、单默认网关）。</summary>
+    public static string BuildNetplanYaml(IpConfig cfg, string renderer = "networkd")
     {
+        renderer = renderer is "NetworkManager" or "networkd" ? renderer : "networkd";
         var sb = new StringBuilder();
         sb.AppendLine("network:");
         sb.AppendLine("  version: 2");
-        sb.AppendLine("  renderer: networkd");
+        sb.AppendLine($"  renderer: {renderer}");
         sb.AppendLine("  ethernets:");
         sb.AppendLine($"    {cfg.Iface}:");
         if (cfg.UseDhcp)
@@ -219,7 +248,9 @@ public sealed partial class NetworkService(SshSession session)
         else
         {
             sb.AppendLine("      dhcp4: false");
-            sb.AppendLine($"      addresses: [{cfg.Ip}/{cfg.Prefix}]");
+            sb.AppendLine("      addresses:");
+            foreach (var a in cfg.Addresses)
+                sb.AppendLine($"        - {a.Cidr}");
             if (cfg.Gateway.Length > 0)
             {
                 sb.AppendLine("      routes:");
@@ -229,7 +260,9 @@ public sealed partial class NetworkService(SshSession session)
             if (cfg.Dns.Count > 0)
             {
                 sb.AppendLine("      nameservers:");
-                sb.AppendLine($"        addresses: [{string.Join(", ", cfg.Dns)}]");
+                sb.AppendLine("        addresses:");
+                foreach (var d in cfg.Dns)
+                    sb.AppendLine($"          - {d}");
             }
         }
         return sb.ToString();

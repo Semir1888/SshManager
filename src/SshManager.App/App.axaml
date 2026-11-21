@@ -295,6 +295,8 @@
 
     <Style Selector="ProgressBar.slim">
       <Setter Property="Height" Value="8"/>
+      <!-- Fluent 主题给水平 ProgressBar 默认 MinWidth=200；必须覆盖，否则窄卡片会被撑破 -->
+      <Setter Property="MinWidth" Value="0"/>
       <Setter Property="CornerRadius" Value="4"/>
     </Style>
 

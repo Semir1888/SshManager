@@ -40,6 +40,20 @@ public partial class FileManagerViewModel : ViewModelBase
 
     public List<FileEntryViewModel> Selected { get; private set; } = new();
 
+    /// <summary>当前远程目录（拖放/粘贴的目标目录）。</summary>
+    public string CurrentPath => _actualPath;
+
+    // ------------------------------------------------------------------ 内部剪贴板（复制/剪切/粘贴）
+
+    private readonly List<FileTransferItem> _clipboard = new();
+    private bool _clipboardCut;
+    private bool _clipboardSudo; // 复制/剪切来源目录是否为 sudo 提权访问
+
+    public bool CanPaste => _clipboard.Count > 0;
+
+    internal IReadOnlyList<FileEntryViewModel> SelectionOr(FileEntryViewModel entry)
+        => Selected.Contains(entry) ? Selected : new[] { entry };
+
     // ------------------------------------------------------------------ 编辑器
 
     /// <summary>文件管理模块内部的编辑标签集合（主Tab=文件浏览，永远存在）。</summary>
@@ -141,6 +155,7 @@ public partial class FileManagerViewModel : ViewModelBase
             IsSudoDir = listing.UsedSudo;
             All.Clear();
             foreach (var i in listing.Items) All.Add(new FileEntryViewModel(i, this));
+            ApplyClipboardMarks();
             ApplyFilter();
             InfoText = $"{All.Count} 项";
         }
@@ -159,6 +174,357 @@ public partial class FileManagerViewModel : ViewModelBase
     {
         var (ok, pw) = await Dialogs.InputAsync("sudo 密码", purpose + "：", "", password: true);
         return ok && pw.Length > 0 ? pw : null;
+    }
+
+    // ------------------------------------------------------------------ 复制 / 剪切 / 粘贴 / 跨目录移动
+
+    private void ApplyClipboardMarks()
+    {
+        if (!_clipboardCut || _clipboard.Count == 0) return;
+        var paths = _clipboard.Select(c => c.FullName).ToHashSet(StringComparer.Ordinal);
+        foreach (var e in All)
+            e.IsCut = paths.Contains(e.FullName);
+    }
+
+    public void CopyEntries(IReadOnlyList<FileEntryViewModel> items) => SetClipboard(items, cut: false);
+
+    public void CutEntries(IReadOnlyList<FileEntryViewModel> items) => SetClipboard(items, cut: true);
+
+    private void SetClipboard(IReadOnlyList<FileEntryViewModel> items, bool cut)
+    {
+        if (items.Count == 0) return;
+        foreach (var e in All) e.IsCut = false;
+        _clipboard.Clear();
+        foreach (var e in items)
+            _clipboard.Add(new FileTransferItem(e.FullName, e.Name, e.IsDirectory));
+        _clipboardCut = cut;
+        _clipboardSudo = IsSudoDir;
+
+        if (cut)
+        {
+            var paths = _clipboard.Select(c => c.FullName).ToHashSet(StringComparer.Ordinal);
+            foreach (var e in All)
+                e.IsCut = paths.Contains(e.FullName);
+        }
+        OnPropertyChanged(nameof(CanPaste));
+        _owner.SetStatus(cut
+            ? $"已剪切 {items.Count} 项，可到目标目录粘贴"
+            : $"已复制 {items.Count} 项，可到目标目录粘贴");
+    }
+
+    /// <summary>清除剪贴板与剪切标记（Esc / 新会话）。</summary>
+    public void ClearClipboard()
+    {
+        if (_clipboard.Count == 0 && All.All(e => !e.IsCut)) return;
+        ResetClipboard();
+        _owner.SetStatus("已清空剪贴板");
+    }
+
+    private void ResetClipboard()
+    {
+        _clipboard.Clear();
+        _clipboardCut = false;
+        _clipboardSudo = false;
+        foreach (var e in All) e.IsCut = false;
+        OnPropertyChanged(nameof(CanPaste));
+    }
+
+    [RelayCommand]
+    private async Task Paste()
+    {
+        if (_clipboard.Count > 0)
+            await PasteIntoAsync(_actualPath);
+    }
+
+    public async Task PasteIntoAsync(string targetDir)
+    {
+        if (_clipboard.Count == 0) return;
+        var items = _clipboard.ToList();
+        var cut = _clipboardCut;
+        var sourceSudo = _clipboardSudo;
+        var result = await MoveCopyAsync(items, targetDir, copy: !cut, sourceSudo);
+
+        if (!cut) return;
+        if (result.Ok)
+        {
+            ResetClipboard();
+            return;
+        }
+        // 部分失败/跳过：剪贴板仅保留未完成的项，便于重试
+        var failed = result.FailedSources.ToHashSet(StringComparer.Ordinal);
+        _clipboard.RemoveAll(c => !failed.Contains(c.FullName));
+        OnPropertyChanged(nameof(CanPaste));
+        ApplyClipboardMarks();
+    }
+
+    public sealed record MoveCopyResult(bool Ok, int Succeeded, IReadOnlyList<string> FailedSources, string? Error);
+
+    /// <summary>
+    /// 在远程目录间移动/复制（拖拽与剪贴板共用）。预期失败全部转成结果/错误文本，不向 UI 抛异常。
+    /// </summary>
+    public async Task<MoveCopyResult> MoveCopyAsync(
+        IReadOnlyList<FileTransferItem> items, string targetDir, bool copy, bool sourceSudo)
+    {
+        static List<string> AllPaths(IReadOnlyList<FileTransferItem> list)
+            => list.Select(i => i.FullName).ToList();
+
+        if (items.Count == 0) return new(true, 0, Array.Empty<string>(), null);
+        if (IsLoading)
+        {
+            ErrorText = "正在执行其他文件操作，请稍候。";
+            return new(false, 0, AllPaths(items), "正在执行其他文件操作，请稍候。");
+        }
+
+        targetDir = UnixPath.Normalize(targetDir);
+        IsLoading = true;
+        var failed = new List<string>();
+        var messages = new List<string>();
+        var succeeded = 0;
+        try
+        {
+            ErrorText = "";
+
+            // 目标目录列表（冲突检测）
+            var targetNames = new HashSet<string>(StringComparer.Ordinal);
+            if (targetDir == _actualPath)
+            {
+                foreach (var e in All) targetNames.Add(e.Name);
+            }
+            else
+            {
+                DirListing listing;
+                try
+                {
+                    listing = await _session.ListDirectoryExAsync(targetDir, AutoSudo || IsSudoDir);
+                }
+                catch (SudoPasswordRequiredException)
+                {
+                    var pw = await PromptSudoPasswordAsync($"需要 sudo 权限才能访问目标目录 {targetDir}");
+                    if (pw == null)
+                        return new(false, 0, AllPaths(items), "已取消：未提供 sudo 密码。");
+                    _session.SudoPassword = pw;
+                    listing = await _session.ListDirectoryExAsync(targetDir, true);
+                }
+                if (listing.Error != null)
+                    return new(false, 0, AllPaths(items), listing.Error);
+                foreach (var e in listing.Items) targetNames.Add(e.Name);
+            }
+
+            // 逐项校验 + 收集冲突
+            var plan = new List<(FileTransferItem Item, string Src, string Dest, bool Overwrite)>();
+            var conflicts = new List<FileTransferItem>();
+            foreach (var item in items)
+            {
+                var src = UnixPath.Normalize(item.FullName);
+                var dest = UnixPath.Combine(targetDir, item.Name);
+                if (dest == src || (!copy && UnixPath.Parent(src) == targetDir))
+                    continue; // 已在目标位置 / 同目录移动：无需操作
+                if (item.IsDirectory &&
+                    (targetDir == src || targetDir.StartsWith(src.TrimEnd('/') + "/", StringComparison.Ordinal)))
+                {
+                    failed.Add(item.FullName);
+                    messages.Add($"{item.Name}：不能把文件夹放入自身或子目录");
+                    continue;
+                }
+                var overwrite = targetNames.Contains(item.Name);
+                plan.Add((item, src, dest, overwrite));
+                if (overwrite) conflicts.Add(item);
+            }
+
+            // 冲突：覆盖 / 跳过 / 取消（一次应用于全部）
+            if (conflicts.Count > 0)
+            {
+                var preview = string.Join("、", conflicts.Take(4).Select(c => $"“{c.Name}”"));
+                if (conflicts.Count > 4) preview += $" 等共 {conflicts.Count} 项";
+                var choice = await Dialogs.ChoiceAsync(
+                    "目标已存在",
+                    $"{preview} 在目标目录中已存在。\n覆盖将替换目标内容，此操作不可恢复。",
+                    okText: "覆盖", discardText: "跳过");
+                if (choice == 2)
+                    return new(false, 0, AllPaths(items), "已取消。");
+                if (choice == 1)
+                {
+                    var skip = conflicts.Select(c => c.FullName).ToHashSet(StringComparer.Ordinal);
+                    foreach (var c in conflicts)
+                    {
+                        failed.Add(c.FullName);
+                        messages.Add($"{c.Name}：已跳过（目标已存在）");
+                    }
+                    plan.RemoveAll(p => skip.Contains(p.Item.FullName));
+                }
+            }
+
+            // 执行
+            var preferSudo = sourceSudo || IsSudoDir;
+            foreach (var (item, src, dest, overwrite) in plan)
+            {
+                var op = copy ? "复制" : "移动";
+                var baseCmd = copy
+                    ? $"cp -a -- {UnixPath.ShellQuote(src)} {UnixPath.ShellQuote(targetDir)}/"
+                    : $"mv -- {UnixPath.ShellQuote(src)} {UnixPath.ShellQuote(targetDir)}/";
+                var cmd = overwrite
+                    ? $"rm -rf -- {UnixPath.ShellQuote(dest)} && {baseCmd}"
+                    : baseCmd;
+
+                string? error;
+                if (preferSudo)
+                {
+                    error = await RunSudoOnceAsync(cmd, op + "文件", TimeSpan.FromMinutes(10), shell: true);
+                }
+                else
+                {
+                    var r = await _session.RunAsync(cmd, TimeSpan.FromMinutes(10));
+                    error = r.ExitCode == 0 ? null : (r.Output + " " + r.Error).Trim();
+
+                    if (error != null && LooksLikePermissionError(error) &&
+                        await Dialogs.ConfirmAsync("权限不足",
+                            $"{item.Name} {op}失败：权限不足。\n是否使用 sudo 重试？",
+                            danger: true, okText: "sudo 重试"))
+                    {
+                        // 复制可能留下半成品：sudo 重试前先清理目标再操作
+                        var retry = $"rm -rf -- {UnixPath.ShellQuote(dest)} && {baseCmd}";
+                        error = await RunSudoOnceAsync(retry, op + "文件", TimeSpan.FromMinutes(10), shell: true);
+                    }
+                }
+
+                if (error == null) succeeded++;
+                else
+                {
+                    failed.Add(item.FullName);
+                    messages.Add($"{item.Name}：{FirstLine(error)}");
+                }
+            }
+
+            if (messages.Count > 0) ErrorText = "部分操作未完成：" + string.Join("；", messages);
+            if (succeeded > 0)
+                _owner.SetStatus($"已{(copy ? "复制" : "移动")} {succeeded} 项到 {targetDir}");
+            else if (messages.Count == 0)
+                _owner.SetStatus("没有需要执行的项（已在目标目录）。");
+        }
+        catch (Exception ex)
+        {
+            messages.Add(ex.Message);
+            foreach (var p in AllPaths(items))
+                if (!failed.Contains(p)) failed.Add(p);
+            ErrorText = "操作失败：" + ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+
+        await NavigateAsync(_actualPath);
+        var ok = failed.Count == 0;
+        return new(ok, succeeded, failed, messages.Count > 0 ? string.Join("；", messages) : null);
+    }
+
+    private static bool LooksLikePermissionError(string text)
+        => text.Contains("Permission denied", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("权限不足", StringComparison.Ordinal)
+           || text.Contains("Operation not permitted", StringComparison.OrdinalIgnoreCase);
+
+    private static string FirstLine(string? text)
+    {
+        var line = (text ?? "").Trim();
+        var i = line.IndexOf('\n');
+        return i >= 0 ? line[..i].Trim() : line;
+    }
+
+    // ------------------------------------------------------------------ 解压压缩包
+
+    public async Task ExtractAsync(FileEntryViewModel entry, bool toOwnFolder)
+    {
+        if (IsLoading) return;
+        if (!ArchiveFormats.IsSupported(entry.Name))
+        {
+            ErrorText = "不支持的压缩格式。";
+            return;
+        }
+
+        var targetDir = toOwnFolder
+            ? UnixPath.Combine(_actualPath, ArchiveFormats.StripSuffix(entry.Name))
+            : _actualPath;
+
+        if (!await Dialogs.ConfirmAsync(
+                "解压",
+                $"将 “{entry.Name}” 解压到：\n{targetDir}\n\n同名文件可能被覆盖。",
+                okText: "解压"))
+            return;
+
+        IsLoading = true;
+        try
+        {
+            ErrorText = "";
+            var extract = ArchiveFormats.BuildExtractCommand(entry.FullName, targetDir);
+            if (extract.Length == 0)
+            {
+                ErrorText = "不支持的压缩格式。";
+                return;
+            }
+            var cmd = toOwnFolder
+                ? $"mkdir -p -- {UnixPath.ShellQuote(targetDir)} && {extract}"
+                : extract;
+
+            string? error;
+            if (IsSudoDir)
+            {
+                error = await RunSudoOnceAsync(cmd, "解压文件", TimeSpan.FromMinutes(10), shell: true);
+            }
+            else
+            {
+                var r = await _session.RunAsync(cmd, TimeSpan.FromMinutes(10));
+                error = r.ExitCode == 0 ? null : (r.Output + " " + r.Error).Trim();
+                if (error != null && LooksLikePermissionError(error) &&
+                    await Dialogs.ConfirmAsync("权限不足",
+                        "解压需要更高权限，是否使用 sudo 重试？",
+                        danger: true, okText: "sudo 重试"))
+                {
+                    error = await RunSudoOnceAsync(cmd, "解压文件", TimeSpan.FromMinutes(10), shell: true);
+                }
+            }
+
+            if (error == null)
+                _owner.SetStatus($"已解压到 {targetDir}");
+            else
+                ErrorText = "解压失败：" + DescribeExtractError(error);
+        }
+        catch (Exception ex)
+        {
+            ErrorText = "解压失败：" + ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+
+        await NavigateAsync(_actualPath);
+    }
+
+    private static string DescribeExtractError(string error)
+    {
+        if (error.Contains("__NO_ZIP_EXTRACTOR__", StringComparison.Ordinal)
+            || error.Contains("not found", StringComparison.OrdinalIgnoreCase)
+            || error.Contains("command not found", StringComparison.OrdinalIgnoreCase))
+        {
+            return error +
+                   "\n请安装对应工具：unzip（sudo apt install unzip）、p7zip-full、或 tar / xz-utils。";
+        }
+        return error;
+    }
+
+    // ------------------------------------------------------------------ 拖出到 Windows
+
+    /// <summary>为一次内部拖拽创建拖出 staging（只有拖出窗口时才会真正下载）。</summary>
+    public DragOutStaging CreateDragOutStaging(IReadOnlyList<FileEntryViewModel> items)
+        => new(_session, _actualPath,
+            items.Select(e => new FileTransferItem(e.FullName, e.Name, e.IsDirectory)).ToList(),
+            IsSudoDir);
+
+    /// <summary>拖出到 Windows 失败时显示原因（由拖拽结束后调用）。</summary>
+    public void ReportDragOutError(string message)
+    {
+        ErrorText = "拖出到 Windows 失败：" + message;
+        _owner.SetStatus("拖出到 Windows 失败：" + message, error: true);
     }
 
     [RelayCommand]
@@ -424,6 +790,32 @@ public partial class FileManagerViewModel : ViewModelBase
         foreach (var t in EditorTabs) t.IsSelected = ReferenceEquals(t, tab);
     }
 
+    /// <summary>供其他页面跳转：导航到指定目录。</summary>
+    public Task NavigateToAsync(string path) => NavigateAsync(path);
+
+    /// <summary>供其他页面跳转：定位并打开指定远程文件（如 compose 配置）。</summary>
+    public async Task OpenRemotePathAsync(string path)
+    {
+        var full = UnixPath.Normalize(path);
+        await NavigateAsync(UnixPath.Parent(full));
+
+        var entry = All.FirstOrDefault(e => !e.IsDirectory && e.FullName == full);
+        if (entry == null)
+        {
+            var st = await _session.StatAsync(full);
+            if (st.Info is { IsDirectory: false })
+                entry = new FileEntryViewModel(st.Info, this);
+        }
+
+        if (entry == null)
+        {
+            ErrorText = $"未找到文件：{full}";
+            return;
+        }
+
+        await OpenInEditorAsync(entry);
+    }
+
     /// <summary>双击/右键“编辑”：把文件读入编辑器标签页（二进制、非 UTF-8、超 2MB 拒绝）。</summary>
     public async Task OpenInEditorAsync(FileEntryViewModel e)
     {
@@ -673,11 +1065,13 @@ public partial class FileManagerViewModel : ViewModelBase
     }
 
     /// <summary>sudo 执行；未保存密码时弹窗补齐后重试。成功返回 null，失败返回错误信息。</summary>
-    private async Task<string?> RunSudoOnceAsync(string command, string purpose)
+    /// <param name="shell">复合命令（含 &amp;&amp; / if）必须为 true，经 sh -c 整体提权。</param>
+    private async Task<string?> RunSudoOnceAsync(string command, string purpose,
+        TimeSpan? timeout = null, bool shell = false)
     {
         try
         {
-            return await RunSudoRawAsync(command);
+            return await RunSudoRawAsync(command, timeout, shell);
         }
         catch (SudoPasswordRequiredException)
         {
@@ -688,13 +1082,14 @@ public partial class FileManagerViewModel : ViewModelBase
             if (!ok || pw.Length == 0)
                 return "已取消：未提供 sudo 密码。";
             _session.SudoPassword = pw;
-            return await RunSudoRawAsync(command);
+            return await RunSudoRawAsync(command, timeout, shell);
         }
     }
 
-    private async Task<string?> RunSudoRawAsync(string command)
+    private async Task<string?> RunSudoRawAsync(string command, TimeSpan? timeout = null, bool shell = false)
     {
-        var r = await _session.RunAsync(_session.WrapSudo(command), TimeSpan.FromSeconds(60));
+        var wrapped = shell ? _session.WrapSudoShell(command) : _session.WrapSudo(command);
+        var r = await _session.RunAsync(wrapped, timeout ?? TimeSpan.FromSeconds(60));
         return r.ExitCode == 0 ? null : (r.Output + " " + r.Error).Trim();
     }
 
@@ -736,14 +1131,17 @@ public partial class FileManagerViewModel : ViewModelBase
 
     // ------------------------------------------------------------------ 传输
 
-    /// <summary>上传本地文件/目录（视图选择后回调）。</summary>
-    public void UploadLocalPaths(IEnumerable<string> paths)
+    /// <summary>上传本地文件/目录（视图选择后回调）；targetDir 为空时上传到当前目录。</summary>
+    public void UploadLocalPaths(IEnumerable<string> paths) => UploadLocalPaths(paths, null);
+
+    public void UploadLocalPaths(IEnumerable<string> paths, string? targetDir)
     {
+        var remoteDir = string.IsNullOrWhiteSpace(targetDir) ? _actualPath : UnixPath.Normalize(targetDir);
         var list = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
         if (list.Count == 0) return;
-        foreach (var p in list) _transfers.EnqueueUpload(p, _actualPath);
+        foreach (var p in list) _transfers.EnqueueUpload(p, remoteDir);
         _owner.TransfersOpen = true;
-        _owner.SetStatus($"已加入上传队列（{list.Count} 项）");
+        _owner.SetStatus($"已加入上传队列（{list.Count} 项）→ {remoteDir}");
     }
 
     /// <summary>下载到指定本地目录（视图选择后回调）。</summary>

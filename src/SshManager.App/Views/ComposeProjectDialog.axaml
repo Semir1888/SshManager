@@ -1,0 +1,95 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SshManager.App.ViewModels"
+        x:Class="SshManager.App.Views.ComposeProjectDialog"
+        x:DataType="vm:ComposeProjectDialogViewModel"
+        Title="Compose 项目" Width="660" Height="640" MinWidth="600" MinHeight="520"
+        CanResize="True" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto">
+
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,10">
+      <TextBlock Classes="t-title" Text="{Binding Title}"/>
+      <TextBlock Classes="t-dim" FontSize="11.5"
+                 Text="绑定本地部署目录与远程项目目录，保存后可在编排页一键升级。项目名须与 docker compose 识别的项目名一致。"/>
+    </StackPanel>
+
+    <Border Grid.Row="1" Classes="card" Padding="14">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="8">
+
+          <TextBlock Text="项目名" Classes="t-dim" FontSize="12"/>
+          <TextBox Text="{Binding ProjectName}" IsEnabled="{Binding IsNameEditable}"
+                   FontFamily="{StaticResource MonoFont}" FontSize="12"
+                   Watermark="例如 my-app（小写字母/数字/下划线/连字符）"/>
+
+          <TextBlock Text="远程项目目录" Classes="t-dim" FontSize="12"/>
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <TextBox Text="{Binding RemoteDir}" Watermark="/opt/my-app"
+                     FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+            <Button Grid.Column="1" Classes="ghost" Content="浏览…"
+                    Command="{Binding BrowseRemoteCommand}"/>
+            <Button Grid.Column="2" Classes="ghost" Content="识别 compose"
+                    Command="{Binding DetectComposeFilesCommand}"
+                    ToolTip.Tip="在远程目录中查找 compose.yaml / docker-compose.yml 等标准文件名"/>
+          </Grid>
+
+          <TextBlock Text="compose 文件（一行一个，可多个 -f）" Classes="t-dim" FontSize="12"/>
+          <TextBox Text="{Binding ComposeFilesText}" AcceptsReturn="True" Height="64"
+                   FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                   Watermark="/opt/my-app/docker-compose.yml"/>
+
+          <TextBlock Text="本地部署目录（与该远程目录按相对路径对应）" Classes="t-dim" FontSize="12"/>
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBox Text="{Binding LocalDir}" Watermark="例如 D:\work\my-app"
+                     FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+            <Button Grid.Column="1" Classes="ghost" Content="浏览…"
+                    Command="{Binding BrowseLocalCommand}"/>
+          </Grid>
+
+          <TextBlock Text="排除规则（一行一个；无 / 时匹配任意目录名）" Classes="t-dim" FontSize="12"/>
+          <TextBox Text="{Binding ExcludeText}" AcceptsReturn="True" Height="82"
+                   FontFamily="{StaticResource MonoFont}" FontSize="11.5"/>
+
+          <TextBlock Text="默认升级方式" Classes="t-dim" FontSize="12"/>
+          <ComboBox SelectedIndex="{Binding ModeIndex, Mode=TwoWay}" HorizontalAlignment="Stretch">
+            <ComboBoxItem Content="自动判断（推荐）"/>
+            <ComboBoxItem Content="构建镜像后启动（up -d --build）"/>
+            <ComboBoxItem Content="仅重建容器（up -d）"/>
+            <ComboBoxItem Content="拉取镜像后启动（pull + up -d）"/>
+            <ComboBoxItem Content="自定义命令"/>
+          </ComboBox>
+
+          <TextBlock Text="自定义升级命令（在项目目录执行）" Classes="t-dim" FontSize="12"
+                     IsVisible="{Binding IsCustomMode}"/>
+          <TextBox Text="{Binding CustomCommand}" IsVisible="{Binding IsCustomMode}"
+                   FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                   Watermark="例如 docker compose up -d --build app"/>
+
+          <CheckBox Content="升级时强制重建容器（挂载 jar/配置时建议保持勾选，默认开启）"
+                    IsChecked="{Binding ForceRecreate, Mode=TwoWay}" FontSize="12"/>
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <CheckBox Content="升级前自动备份" IsChecked="{Binding BackupEnabled, Mode=TwoWay}"
+                      FontSize="12"/>
+            <TextBlock Text="保留份数" Classes="t-dim" FontSize="12" VerticalAlignment="Center"/>
+            <NumericUpDown Value="{Binding BackupKeep, Mode=TwoWay}" Minimum="1" Maximum="50"
+                           Width="100" FontSize="12" FormatString="0"/>
+          </StackPanel>
+
+          <Border Height="1" Background="{DynamicResource C_Border}" Margin="2,4"/>
+          <TextBlock Classes="t-dim" FontSize="11" TextWrapping="Wrap" LineHeight="18"
+                     Text="· 备份保存在远程项目目录 .sshmanager-backups/ 下，按时间戳归档。&#10;· .env 默认参与上传与备份。&#10;· 目录同步按相对路径映射，不会删除远程多出的文件。"/>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" Margin="0,12,0,0">
+      <TextBlock Text="{Binding StatusText}" Classes="t-dim" FontSize="11.5"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+      <Button Grid.Column="1" Classes="ghost" Content="取消" MinWidth="88"
+              IsEnabled="{Binding !IsBusy}" Click="OnCancel"/>
+      <Button Grid.Column="2" Classes="primary" Content="保存" MinWidth="96"
+              IsEnabled="{Binding !IsBusy}" Click="OnSave"/>
+    </Grid>
+  </Grid>
+</Window>

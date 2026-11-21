@@ -16,13 +16,26 @@ public partial class NetIfItemViewModel : ViewModelBase
     public bool IsWifi => Model.IsWifi;
     public string Kind => Model.IsWifi ? "无线" : "有线";
     public string StateText => Model.State == "UP" ? "已启用" : Model.State;
-    public string AddrText => Model.Addresses.Count > 0
-        ? string.Join("  ", Model.Addresses.Where(a => !a.Contains(':')))
+    public string AddrText => Model.Ipv4Addresses.Count > 0
+        ? string.Join("  ", Model.Ipv4Addresses.Select(a => a.Cidr))
         : "无 IPv4 地址";
     public string MethodText => Model.NmManaged
         ? (Model.NmMethod == "manual" ? "NetworkManager · 静态"
             : Model.NmMethod == "auto" ? "NetworkManager · DHCP" : "NetworkManager")
         : "netplan / networkd";
+    public string AddressSummary => Model.Ipv4Addresses.Count > 0
+        ? string.Join(", ", Model.Ipv4Addresses.Select(a => a.Cidr))
+        : "无 IPv4 地址";
+    public string Ipv6Summary => Model.Ipv6Addresses.Count > 0
+        ? string.Join(", ", Model.Ipv6Addresses.Take(4))
+        : "";
+    public string GatewaySummary => Model.Gateways.Count > 0
+        ? string.Join(", ", Model.Gateways)
+        : "—";
+    public string DnsSummary => Model.DnsServers.Count > 0
+        ? string.Join(", ", Model.DnsServers)
+        : "—";
+    public bool Unsupported => Model.UnsupportedKind;
 }
 
 /// <summary>WiFi 扫描行。</summary>
@@ -96,12 +109,14 @@ public partial class NetworkViewModel : ViewModelBase
     private readonly SshSession _session;
     private readonly NetworkService _net;
     private readonly MainWindowViewModel _owner;
+    private bool _suppressIfSelection;
 
     public NetworkViewModel(SshSession session, MainWindowViewModel owner)
     {
         _session = session;
         _owner = owner;
         _net = new NetworkService(session);
+        Ip = new IpConfigPanelViewModel(session, _net, owner, LoadInterfacesAsync);
         _ = LoadAllAsync();
     }
 
@@ -113,103 +128,20 @@ public partial class NetworkViewModel : ViewModelBase
     // ------------------------------------------------------------------ 网卡
 
     public ObservableCollection<NetIfItemViewModel> Interfaces { get; } = new();
+    public IpConfigPanelViewModel Ip { get; }
 
     [ObservableProperty] private NetIfItemViewModel? _selectedInterface;
-    [ObservableProperty] private bool _useDhcp = true;
-    [ObservableProperty] private bool _useStatic;
-    [ObservableProperty] private string _ipText = "";
-    [ObservableProperty] private string _prefixText = "24";
-    [ObservableProperty] private string _gatewayText = "";
-    [ObservableProperty] private string _dnsText = "";
-    [ObservableProperty] private string _ifStatus = "";
-    [ObservableProperty] private bool _ifBusy;
 
     public bool HasInterface => SelectedInterface != null;
 
     partial void OnSelectedInterfaceChanged(NetIfItemViewModel? value)
     {
-        PrefillFromInterface();
+        // 列表重建时 ComboBox 会瞬时把选中项置空，这里的副作用会覆盖正在编辑的表单
+        if (!_suppressIfSelection) Ip.SetInterface(value);
         OnPropertyChanged(nameof(HasInterface));
     }
 
-    private void PrefillFromInterface()
-    {
-        var m = SelectedInterface?.Model;
-        if (m == null) return;
-        var v4 = m.Addresses.FirstOrDefault(a => !a.Contains(':')) ?? "";
-        var slash = v4.IndexOf('/');
-        IpText = slash > 0 ? v4[..slash] : v4;
-        PrefixText = slash > 0 ? v4[(slash + 1)..] : "24";
-        GatewayText = m.Gateway;
-        DnsText = m.Dns;
-        var isDhcp = m.NmManaged ? m.NmMethod != "manual" : !m.Addresses.Any(a => !a.Contains(':'));
-        UseDhcp = isDhcp;
-        UseStatic = !isDhcp;
-        IfStatus = "";
-    }
-
-    [RelayCommand]
-    private async Task ApplyIpAsync()
-    {
-        var m = SelectedInterface?.Model;
-        if (m == null || IfBusy) return;
-        IfBusy = true;
-        try
-        {
-            var dns = DnsText.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(d => NetworkService.IsIPv4(d)).ToList();
-            var cfg = new IpConfig(m.Name, UseDhcp, IpText.Trim(), 24, GatewayText.Trim(), dns);
-            if (!UseDhcp)
-            {
-                if (!NetworkService.IsIPv4(IpText)) { IfStatus = "IP 地址格式不正确。"; return; }
-                var prefix = NetworkService.ParsePrefixOrMask(PrefixText);
-                if (prefix == null) { IfStatus = "子网掩码/前缀不正确（应为 24 或 255.255.255.0 形式）。"; return; }
-                if (GatewayText.Trim().Length > 0 && !NetworkService.IsIPv4(GatewayText)) { IfStatus = "网关格式不正确。"; return; }
-                cfg = new IpConfig(m.Name, false, IpText.Trim(), prefix.Value, GatewayText.Trim(), dns);
-            }
-
-            var viaNm = m.NmManaged && m.NmConnection.Length > 0;
-            var yaml = viaNm ? "" : NetworkService.BuildNetplanYaml(cfg);
-            var modeText = viaNm ? "NetworkManager（nmcli）" : "netplan（写入 /etc/netplan/99-sshmanager-*.yaml）";
-            var summary = UseDhcp
-                ? $"{m.Name} 改为自动获取（DHCP）"
-                : $"{m.Name} 设为静态：{cfg.Ip}/{cfg.Prefix}" +
-                  (cfg.Gateway.Length > 0 ? $"\n网关：{cfg.Gateway}" : "\n网关：（不设置默认路由）") +
-                  (dns.Count > 0 ? $"\nDNS：{string.Join("、", dns)}" : "");
-
-            if (!await Dialogs.ConfirmAsync(
-                    "应用网络配置",
-                    $"方式：{modeText}\n\n{summary}\n\n" +
-                    "注意：应用时网络会短暂中断，当前 SSH 连接可能断开（配置有误会失联，需在服务器本机恢复）。\n继续？",
-                    danger: true, okText: "应用", mono: true))
-                return;
-
-            string? err;
-            if (viaNm)
-                err = await _net.ApplyViaNmAsync(m.NmConnection, cfg, SudoAsync);
-            else if (m.IsWifi)
-            {
-                IfStatus = "无线网卡由 NetworkManager 管理，请在下方 WiFi 区域配置。";
-                return;
-            }
-            else
-                err = await _net.ApplyViaNetplanAsync(cfg, yaml, SudoAsync);
-
-            if (err != null) IfStatus = "应用失败：" + err;
-            else
-            {
-                IfStatus = "已应用。若 SSH 断开请重新连接并在服务器上确认网络正常。";
-                _owner.SetStatus($"已应用 {m.Name} 的网络配置");
-                await Task.Delay(1500); // 给网络一点恢复时间再刷新
-                await LoadInterfacesAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            IfStatus = "应用失败：" + ex.Message;
-        }
-        finally { IfBusy = false; }
-    }
+    internal void Cleanup() => Ip.Cleanup();
 
     // ------------------------------------------------------------------ WiFi
 
@@ -568,23 +500,49 @@ public partial class NetworkViewModel : ViewModelBase
     {
         var list = await _net.ListInterfacesAsync();
         var selected = SelectedInterface?.Name;
-        Interfaces.Clear();
-        foreach (var i in list) Interfaces.Add(new NetIfItemViewModel { Model = i });
-        SelectedInterface = Interfaces.FirstOrDefault(i => i.Name == selected)
-                            ?? Interfaces.FirstOrDefault();
+
+        _suppressIfSelection = true;
+        try
+        {
+            Interfaces.Clear();
+            foreach (var i in list) Interfaces.Add(new NetIfItemViewModel { Model = i });
+            SelectedInterface = Interfaces.FirstOrDefault(i => i.Name == selected)
+                                ?? Interfaces.FirstOrDefault();
+        }
+        finally
+        {
+            _suppressIfSelection = false;
+        }
+
+        // 重建完成后只同步一次面板；同名时只更新摘要，不覆盖表单
+        Ip.SetInterface(SelectedInterface);
     }
 
     // ------------------------------------------------------------------ sudo
 
-    /// <summary>sudo 执行：缺密码时弹窗补齐重试。成功返回 null，失败返回错误信息。</summary>
+    /// <summary>sudo 执行：缺密码或密码错误时弹窗补齐重试。成功返回 null，失败返回错误信息。</summary>
     private async Task<string?> SudoAsync(string command)
     {
-        try
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            return await RunSudoAsync(command);
-        }
-        catch (SudoPasswordRequiredException)
-        {
+            try
+            {
+                var err = await RunSudoAsync(command);
+                if (err == null) return null;
+                if (!IsSudoPasswordError(err)) return err;
+
+                // 密码错误：清空后重新弹窗
+                _session.SudoPassword = null;
+            }
+            catch (SudoPasswordRequiredException)
+            {
+                // 继续弹窗
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+
             var (ok, pw) = await Dialogs.InputAsync(
                 "sudo 密码",
                 $"用户 {_session.Profile.Username} 需要修改系统网络参数，请输入其密码：",
@@ -592,18 +550,20 @@ public partial class NetworkViewModel : ViewModelBase
             if (!ok || pw.Length == 0)
                 return "已取消：未提供 sudo 密码。";
             _session.SudoPassword = pw;
-            try { return await RunSudoAsync(command); }
-            catch (Exception ex) { return ex.Message; }
         }
-        catch (Exception ex)
-        {
-            return ex.Message;
-        }
+        return "sudo 密码错误或权限不足。";
     }
+
+    private static bool IsSudoPasswordError(string text)
+        => text.Contains("incorrect password", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("Sorry, try again", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("密码不正确", StringComparison.OrdinalIgnoreCase)
+           || text.Contains("抱歉，请重试", StringComparison.OrdinalIgnoreCase);
 
     private async Task<string?> RunSudoAsync(string command)
     {
-        var r = await _net.RunSudoRawAsync(command, TimeSpan.FromSeconds(90));
+        // 用 shell 包装整条命令：netplan/UFW 修改包含 ; 与 &&，普通 sudo 只会提权第一段
+        var r = await _net.RunSudoShellAsync(command, TimeSpan.FromSeconds(90));
         return r.ExitCode == 0 ? null : (r.Output + " " + r.Error).Trim();
     }
 }

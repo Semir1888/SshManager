@@ -13,6 +13,11 @@
       <MenuItem Header="编辑" Command="{Binding EditCommand}">
         <MenuItem.Icon><Path Classes="icon c-dim" Data="{StaticResource IcPencil}" Width="14" Height="14"/></MenuItem.Icon>
       </MenuItem>
+      <MenuItem Header="复制" Command="{Binding CopyCommand}" InputGesture="Ctrl+C"/>
+      <MenuItem Header="剪切" Command="{Binding CutCommand}" InputGesture="Ctrl+X"/>
+      <MenuItem Header="解压到当前目录" Command="{Binding ExtractHereCommand}" IsVisible="{Binding CanExtract}"/>
+      <MenuItem Header="解压到同名文件夹" Command="{Binding ExtractToFolderCommand}" IsVisible="{Binding CanExtract}"/>
+      <Separator IsVisible="{Binding CanExtract}"/>
       <MenuItem Header="下载" Command="{Binding DownloadCommand}">
         <MenuItem.Icon><Path Classes="icon c-dim" Data="{StaticResource IcDownload}" Width="14" Height="14"/></MenuItem.Icon>
       </MenuItem>
@@ -28,6 +33,22 @@
       </MenuItem>
     </ContextMenu>
   </UserControl.Resources>
+
+  <UserControl.Styles>
+    <!-- 名称列的剪切/拖拽悬停状态 -->
+    <Style Selector="Border.cellname">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Border.cellname.cut">
+      <Setter Property="Opacity" Value="0.45"/>
+    </Style>
+    <Style Selector="Border.cellname.drop">
+      <Setter Property="Background" Value="{DynamicResource C_Sel}"/>
+    </Style>
+    <Style Selector="Border.cellname.drop Path.icon">
+      <Setter Property="Stroke" Value="{DynamicResource C_Acc}"/>
+    </Style>
+  </UserControl.Styles>
 
   <!-- ══════════ 文件管理模块内部标签条：主Tab（文件浏览）不可关闭 + 右侧编辑标签 ══════════ -->
   <Grid RowDefinitions="Auto,*">
@@ -186,17 +207,28 @@
                     KeyDown="OnGridKeyDown"
                     Background="Transparent" BorderThickness="0"
                     RowBackground="Transparent">
+            <DataGrid.ContextMenu>
+              <ContextMenu x:DataType="vm:FileManagerViewModel">
+                <MenuItem Header="粘贴" Command="{Binding PasteCommand}" InputGesture="Ctrl+V"
+                          IsEnabled="{Binding CanPaste}"/>
+                <Separator/>
+                <MenuItem Header="刷新" Command="{Binding RefreshCommand}" InputGesture="F5"/>
+              </ContextMenu>
+            </DataGrid.ContextMenu>
             <DataGrid.Columns>
               <DataGridTemplateColumn Header="名称" Width="3*">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate x:DataType="vm:FileEntryViewModel">
-                    <StackPanel Orientation="Horizontal" Spacing="9" Background="Transparent"
-                                ContextMenu="{StaticResource EntryMenu}">
-                      <Path Classes="icon" Data="{Binding Icon}" Stroke="{Binding IconBrush}"
-                            Width="16" Height="16" VerticalAlignment="Center"/>
-                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
-                                 VerticalAlignment="Center"/>
-                    </StackPanel>
+                    <Border Padding="2,1" CornerRadius="4" Classes="cellname"
+                            ContextMenu="{StaticResource EntryMenu}"
+                            Classes.cut="{Binding IsCut}" Classes.drop="{Binding IsDropTarget}">
+                      <StackPanel Orientation="Horizontal" Spacing="9">
+                        <Path Classes="icon" Data="{Binding Icon}" Stroke="{Binding IconBrush}"
+                              Width="16" Height="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
+                      </StackPanel>
+                    </Border>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
@@ -245,9 +277,10 @@
             </Border>
             <TextBlock Grid.Column="2" Text="{Binding ErrorText}" FontSize="12"
                        Foreground="{DynamicResource C_Danger}" TextWrapping="Wrap"/>
-            <TextBlock Grid.Column="4" Text="支持多选 · Delete 删除 · 双击目录进入 / 文件编辑（右侧新增标签页） · Ctrl+S 保存 · 拖放上传"
+            <TextBlock Grid.Column="4" Text="支持多选 · Delete 删除 · 双击进入/编辑 · Ctrl+C/X/V 复制剪切粘贴 · 拖到文件夹移动 · 拖放上传/拖出下载"
                        Classes="t-dim" FontSize="11" HorizontalAlignment="Right"
-                       TextTrimming="CharacterEllipsis"/>
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="拖拽：默认移动，Ctrl+拖拽复制；右键压缩包可解压"/>
           </Grid>
         </Border>
       </Grid>

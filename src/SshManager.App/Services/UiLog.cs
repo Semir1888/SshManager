@@ -21,8 +21,26 @@ public partial class UiLog : ObservableObject
     /// <summary>任意线程调用；自动调度到 UI 线节流刷新。</summary>
     public void Line(string line)
     {
-        lock (_lock) _pending.Add(line);
+        lock (_lock) _pending.Add(RedactSudo(line));
         TrySchedule();
+    }
+
+    /// <summary>
+    /// 防御性脱敏：命令超时等错误信息可能回显完整命令，其中 sudo 包装包含密码
+    /// （echo 'pw' | sudo -S -p '' …）。日志中一律去掉密码部分。
+    /// </summary>
+    private static string RedactSudo(string line)
+    {
+        if (string.IsNullOrEmpty(line)) return line;
+        const string marker = "| sudo -S -p ''";
+        while (true)
+        {
+            var end = line.IndexOf(marker, StringComparison.Ordinal);
+            if (end < 0) return line;
+            var start = line.LastIndexOf("echo ", end, StringComparison.Ordinal);
+            if (start < 0) return line;
+            line = line[..start] + "sudo -S -p ''" + line[(end + marker.Length)..];
+        }
     }
 
     public void Clear()

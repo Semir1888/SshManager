@@ -1,9 +1,41 @@
 # SshManager — Linux 远程管理工具（C# / Avalonia）
 
-用 C# 编写的图形化 SSH 服务器管理工具：执行任意命令（**含真·交互终端**）、管理文件（上传/下载/删除/重命名/**在线编辑**、**无权限目录 sudo 提权访问**）、查看与卸载已安装应用（apt / snap / flatpak）、**Docker 容器与镜像管理**、**网络参数配置（IP / 网关 / DNS / WiFi / 防火墙 / 主机名）**、实时查看系统状态。服务器端**无需安装任何额外软件**，只要有 SSH 服务（默认 22 端口）即可。
+用 C# 编写的图形化 SSH 服务器管理工具：执行任意命令（**含真·交互终端**）、管理文件（上传/下载/删除/重命名/**在线编辑**、**无权限目录 sudo 提权访问**）、查看与卸载已安装应用（apt / snap / flatpak）、**Docker 容器与镜像管理**、**Docker Compose 编排与一键升级**、**网络参数配置（IP / 网关 / DNS / WiFi / 防火墙 / 主机名）**、实时查看系统状态。服务器端**无需安装任何额外软件**，只要有 SSH 服务（默认 22 端口）即可。
 
 > 技术栈：.NET 8 · Avalonia UI 11 · SSH.NET · CommunityToolkit.Mvvm（MVVM）
 > 适配系统：Windows / Linux / macOS 均可编译运行（跨平台）
+
+## v0.10.0 更新日志
+
+- **网络设置：网卡 IPv4 配置全面重做（参考 Windows IP 设置）**：
+  - 一个网卡可配置**多个 IPv4 地址**，每个地址独立子网掩码/前缀；支持**多个 DNS** 与单个默认网关。
+  - 严格校验：点分四段 IPv4、连续掩码、地址去重、网络/广播地址、网关必须落在已配置子网内、DNS 非法项直接提示（不再静默丢弃）。
+  - 表单回填优先使用**持久化配置**：netplan（`netplan get`）/ NetworkManager 连接字段；读不到时明确标注“运行态”，并提供 sudo 重新读取。
+  - **持久化保证**：netplan 存在时优先写 `/etc/netplan/99-sshmanager-<网卡>.yaml` 并用 `netplan generate` 预校验；自动分析其他 netplan 文件，必要时备份并接管该网卡的 IPv4 配置；无 netplan 时使用持久化 NM 连接。**修复了复合 sudo 命令只提权第一段的旧问题**（netplan 写入 / UFW 规则修改）。
+  - **应用后 120 秒自动回滚**：服务器端看门狗在应用后等待确认；SSH 断开或运行时/有效配置校验失败时自动恢复旧配置；校验成功才取消回滚。断线重连后网络页显示待确认横幅，可“保留新配置”或“立即回滚”。
+  - 修改当前 SSH 连接地址时强提醒，并建议保留旧 IP 作为第二地址；配置预览显示生成的 netplan YAML 或 nmcli 命令（不含密码）。
+  - sudo 密码错误会自动重新弹窗；配置校验失败立即恢复，不留下半配置。
+  - 修复非 root 场景下 netplan 读取把 stderr 混入 YAML 导致“有效配置校验失败→回滚”的问题；新增可复制的**应用日志 / 诊断信息**（失败时自动展开，一键收集 ip/netplan/NM/回滚状态）。
+  - 每次应用前强制刷新 netplan 文件列表与冲突分析；有效配置中仍残留旧地址时，自动 `grep` 出包含该地址的 netplan 文件并写入日志，便于接管或手动合并。
+  - 修复非 root 直读 600 权限 netplan 文件时“退出码 0 但输出为空/不完整”导致跳过 sudo 与冲突分析的问题；netplan 整体配置改为 sudo 优先读取。
+  - 修复“添加地址 / 添加 DNS”按钮因命令方法名与生成属性重名导致的 `MethodAccessException`。
+- 版本号更新为 v0.10.0。
+
+## v0.9.0 更新日志
+
+- **顶部新增「编排」标签（紧邻 Docker，Docker Compose 管理）**：
+  - 自动发现服务器上的 compose 项目（`docker compose ls -a`，兼容 v1 `docker-compose` 与容器 labels 回退），显示运行状态、配置文件与工作目录；支持手动添加/编辑项目绑定。
+  - 项目详情列出配置中的服务与实际容器（状态、健康、镜像、端口），支持启动 / 停止 / 重启 / 拉取 / 构建 / 强制重建 / `down`（保留数据卷）、服务级重启/重建/日志/终端命令、项目聚合日志与单服务实时日志（`logs -f`，可停止）。
+  - 「编辑 compose」跳转文件管理复用现有编辑器；「打开目录」直接导航到项目目录。
+- **一键升级（核心）**：
+  - 每个项目绑定 **本地部署目录 ↔ 远程项目目录**，保存排除规则、升级方式、备份策略，下次点一次即可升级。
+  - 升级前自动扫描本地文件并比对远程：新增 / 修改 / 未变 / 仅远程存在四类；大小相同再比 MD5，准确识别同尺寸配置文件改动；可勾选上传、强制上传全部，或临时选择单个文件并映射远程相对路径。
+  - 升级流程：**自动备份**（`<项目>/.sshmanager-backups/<时间戳>.tar.gz`，默认保留 5 份）→ SFTP 上传（临时文件 + 原子替换，无权限自动 `/tmp` + sudo cp）→ `docker compose config -q` 校验 → 按升级方式执行 → 健康检查。
+  - 升级方式：**自动判断**（检测到 Dockerfile/build 配置则 `up -d --build`；否则文件变化时按“强制重建”开关决定是否 `--force-recreate`，默认开启，确保挂载的 jar/配置生效）、构建启动、仅重建、拉取后启动、自定义命令。
+  - 升级失败/配置校验失败时，日志面板提供**一键回滚**：恢复最近备份并强制重建容器；「备份…」对话框可查看历史备份、恢复或删除。
+  - 全程支持 sudo 降级与缺密码弹窗重试；路径含空格/中文/单引号、多 `-f`、`.env` 等场景均已处理，本地符号链接会安全跳过。
+- **布局**：编排为独立顶部标签，Docker 页保持原有容器/镜像布局不变；编排页操作行使用自动换行布局，窄窗口可用，顶部标签条支持横向滚动。
+- 版本号更新为 v0.9.0。
 
 ## v0.8.0 更新日志
 
@@ -118,7 +150,8 @@
 | **在线编辑** | 双击文件即编辑，**文件管理内部标签页**（主Tab=文件浏览不可关，右侧新增编辑标签，切页不丢光标）、●未保存标记、Ctrl+S 保存、Tab 缩进、行列指示、BOM/换行符/结尾换行原样还原、外部修改检测、sudo 保存、二进制/非UTF-8/超2MB 拒绝 |
 | 应用中心 | 列出 apt/dpkg + snap + flatpak 全部已安装应用，搜索/来源筛选，一键卸载（自动 sudo），输入包名安装，实时输出 |
 | **Docker 管理** | 容器/镜像列表与生命周期操作（启动/停止/重启/删除/清理），CPU·内存实时占用，日志查看（尾部行数可选/自动滚动），磁盘占用概览，docker exec 终端命令填入，非 docker 组用户自动 sudo |
-| **网络设置** | 网卡 **IP/子网/网关/DNS**（DHCP/静态，nmcli + netplan 双方案自动选择，旧配置自动备份）、**WiFi 扫描与连接**、**UFW 防火墙**（启停/默认策略/规则增删改，任何 locale 下规则列表稳定）、**主机名**修改；全程二次确认 + sudo |
+| **Compose 编排** | 项目自动发现/手动添加、服务与容器状态、启动/停止/重启/拉取/构建/强制重建/down、项目与服务实时日志、编辑 compose、本地目录绑定与**一键升级**（变更比对/自动备份/SFTP 上传/配置校验/健康检查/**回滚**）、备份管理 |
+| **网络设置** | 网卡 **多 IPv4 / 多 DNS / 单网关**（DHCP/静态，netplan / NetworkManager 持久化自动选择，冲突接管 + `netplan generate` 预校验）、**应用后 120 秒自动回滚**、待确认横幅、**WiFi 扫描与连接**、**UFW 防火墙**（启停/默认策略/规则增删改，任何 locale 下规则列表稳定）、**主机名**修改；全程二次确认 + sudo |
 | 命令台 | **双模式**：单次执行（流式输出/退出码/↑↓历史/命令库 88 条/sudo 自动注入密码）+ **交互终端（PTY）**（真 xterm 终端，cd/sudo -i/top/vim 等所有命令、真彩色、5000 行回看、Ctrl+C/粘贴/窗口自适应） |
 | 传输队列 | 顺序执行、进度/速度实时显示、传输中可取消、**高度可拖拽调节**、多文件夹递归、失败/取消显示原因、无权限文件自动 sudo 降级传输 |
 
@@ -132,19 +165,24 @@ SshManager/
 ├── README.md
 ├── tools/
 │   └── make_icon.py          # 应用图标生成脚本（Pillow，圆角版）
+├── tests/
+│   └── SshManager.Core.Tests # 纯逻辑测试（IPv4/掩码/YAML/nmcli/回滚 token）
 └── src/
     ├── SshManager.Core/      # 核心库（不含 UI）
-    │   ├── Models/           # Profile / CommandResult / Docker / Network 等模型
+    │   ├── Models/           # Profile / CommandResult / Docker / Compose / Network 等模型
     │   ├── Services/         # SshSession（SSH/SFTP 会话 + sudo 降级访问 + PTY）、
     │   │                     # PtySession（交互终端会话）、SystemInfo、AppManager、
-    │   │                     # Docker、Network 服务、ProfileStore（json 持久化）
+    │   │                     # Docker、ComposeService / ComposeDeployService /
+    │   │                     # ComposeBindingStore、NetworkService（多 IP/持久化/
+    │   │                     # 120 秒回滚分部）、IpValidation / NetplanConfig /
+    │   │                     # NmcliConfig / RollbackProtocol、ProfileStore
     │   ├── Helpers/          # UnixPath（ShellQuote / 权限解析 / 人性化大小等）
     │   └── Exceptions.cs     # PermissionDenied / SudoPasswordRequired 等业务异常
     └── SshManager.App/       # Avalonia UI 项目
-        ├── ViewModels/       # MVVM ViewModel（CommunityToolkit.Mvvm 源生成器）
-        ├── Views/            # axaml 视图 + TerminalControl（终端渲染控件）+ 少量代码后置
-        ├── Services/         # TransferService（传输队列 + sudo 降级）、Terminal/
-        │                     # （VtDecoder 转义序列解码 + TerminalBuffer 终端缓冲）、
+        ├── ViewModels/       # MVVM ViewModel（含 IpConfigPanelViewModel）
+        ├── Views/            # axaml 视图 + TerminalControl + IpConfigView/应用确认框
+        ├── Services/         # TransferService（传输队列 + sudo 降级）、SudoRunner、
+        │                     # Terminal/（VtDecoder + TerminalBuffer）、
         │                     # Dialogs、UiSettings、CommandLibrary、Converters
         └── Assets/           # 图标资源
 ```
@@ -171,7 +209,7 @@ dotnet publish src/SshManager.App -c Release -r win-x64 \
     -o publish-selfcontained/
 ```
 
-配置保存位置：`%APPDATA%/SshManager/`（Windows）或 `~/.config/SshManager/`（`profiles.json` 服务器列表、`ui.json` 界面偏好）。**密码永不落盘**，sudo 密码仅保存在内存。
+配置保存位置：`%APPDATA%/SshManager/`（Windows）或 `~/.config/SshManager/`（`profiles.json` 服务器列表、`ui.json` 界面偏好、`compose.json` Compose 项目绑定与升级设置）。**密码永不落盘**，sudo 密码仅保存在内存。
 
 ## 设计说明
 

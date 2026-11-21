@@ -10,9 +10,28 @@ public sealed class NetInterface
     public List<string> Addresses { get; init; } = new(); // ["192.168.1.5/24", ...]
     public string Gateway { get; init; } = "";        // 默认网关（该网卡）
     public string Dns { get; init; } = "";            // 逗号分隔
-    public bool NmManaged { get; init; }              // 由 NetworkManager 管理
+    public bool NmManaged { get; init; }              // 由 NetworkManager 管理（含 disconnected）
     public string NmConnection { get; init; } = "";   // NM 连接名
     public string NmMethod { get; init; } = "";       // auto / manual
+
+    // 多地址/持久化改造新增字段（保留上面的旧字段兼容现有绑定）
+    public List<Ipv4Address> Ipv4Addresses { get; init; } = new();
+    public List<string> Ipv6Addresses { get; init; } = new();
+    public List<string> DnsServers { get; init; } = new();
+    public List<string> Gateways { get; init; } = new();
+    public List<string> Ipv6Gateways { get; init; } = new();
+    public bool NmRunning { get; init; }
+    public string NmUuid { get; init; } = "";
+    public string NmFile { get; init; } = "";
+    public bool NmEphemeral { get; init; }
+    public bool NetplanInstalled { get; init; }
+    public bool IsNetplanManaged { get; init; }
+    public string NetplanRenderer { get; init; } = "";
+    public List<string> NetplanSourceFiles { get; init; } = new();
+    public PersistentIpConfig? Persisted { get; init; }
+    public bool UnsupportedKind { get; init; }        // bridge/bond/vlan 等
+    public string Kind { get; init; } = "";           // 内核 link_type / info_kind
+    public bool HasMultipleDefaultRoutes { get; init; }
 }
 
 /// <summary>一次 WiFi 扫描结果。</summary>

@@ -444,7 +444,7 @@ public sealed class TransferService
             var target = UnixPath.ShellQuote(t.RemotePath);
             var parent = UnixPath.ShellQuote(UnixPath.Parent(t.RemotePath));
             var r = await RunSudoAsync(
-                s => s.RunAsync(s.WrapSudo($"mkdir -p -- {parent} && cp -- {UnixPath.ShellQuote(temp)} {target}"),
+                s => s.RunAsync(s.WrapSudoShell($"mkdir -p -- {parent} && cp -- {UnixPath.ShellQuote(temp)} {target}"),
                     TimeSpan.FromMinutes(10)),
                 "上传到无权限目录");
             if (r.ExitCode != 0)

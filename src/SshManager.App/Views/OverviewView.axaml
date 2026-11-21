@@ -67,7 +67,7 @@
           </Border>
 
           <!-- CPU -->
-          <Border Classes="card" Grid.Column="1">
+          <Border Classes="card" Grid.Column="1" ClipToBounds="True">
             <StackPanel Spacing="10">
               <StackPanel Orientation="Horizontal" Spacing="9">
                 <Path Classes="icon c-warn" Data="{StaticResource IcCpu}"/>
@@ -81,7 +81,7 @@
           </Border>
 
           <!-- 内存 -->
-          <Border Classes="card" Grid.Column="2">
+          <Border Classes="card" Grid.Column="2" ClipToBounds="True">
             <StackPanel Spacing="10">
               <StackPanel Orientation="Horizontal" Spacing="9">
                 <Path Classes="icon c-info" Data="{StaticResource IcMemory}"/>
@@ -95,7 +95,7 @@
           </Border>
 
           <!-- 磁盘 -->
-          <Border Classes="card" Grid.Column="3">
+          <Border Classes="card" Grid.Column="3" ClipToBounds="True">
             <StackPanel Spacing="10">
               <StackPanel Orientation="Horizontal" Spacing="9">
                 <Path Classes="icon c-acc" Data="{StaticResource IcDrive}"/>

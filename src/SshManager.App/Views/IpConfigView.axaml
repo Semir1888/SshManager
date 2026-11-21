@@ -1,0 +1,255 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             x:Class="SshManager.App.Views.IpConfigView"
+             x:DataType="vm:NetworkViewModel">
+  <UserControl.Resources>
+    <DataTemplate x:Key="IfItemTemplate" x:DataType="vm:NetIfItemViewModel">
+      <StackPanel Spacing="1">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+          <Border Classes="badge">
+            <TextBlock Text="{Binding Kind}" FontSize="10.5" Classes="t-dim"/>
+          </Border>
+        </StackPanel>
+        <TextBlock Text="{Binding AddrText}" Classes="t-dim" FontSize="11"
+                   FontFamily="{StaticResource MonoFont}"/>
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="TextBlock.nlbl">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg2}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBox.nfield">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Height" Value="32"/>
+    </Style>
+    <Style Selector="TextBlock.cardh">
+      <Setter Property="FontSize" Value="14.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{DynamicResource C_Fg}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.nact">
+      <Setter Property="Height" Value="30"/>
+      <Setter Property="Padding" Value="14,3"/>
+      <Setter Property="FontSize" Value="12.5"/>
+    </Style>
+  </UserControl.Styles>
+
+  <Border Classes="card">
+    <StackPanel Spacing="12">
+
+      <!-- 标题 + 应用 -->
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+        <StackPanel Orientation="Horizontal" Spacing="9">
+          <Path Classes="icon c-acc" Data="{StaticResource IcGlobe}"/>
+          <TextBlock Classes="cardh" Text="网卡 IPv4 配置"/>
+          <Border Classes="badge" IsVisible="{Binding Ip.IsUnsupported}">
+            <TextBlock Text="不支持" FontSize="10.5" Foreground="{DynamicResource C_Warn}"/>
+          </Border>
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <ProgressBar Classes="slim" Width="16" IsIndeterminate="True"
+                       IsVisible="{Binding Ip.IsBusy}" VerticalAlignment="Center"/>
+          <Button Classes="primary nact" Command="{Binding Ip.ApplyCommand}"
+                  IsEnabled="{Binding Ip.CanApply}"
+                  ToolTip.Tip="应用后会校验；若 SSH 断开或校验失败，120 秒后自动回滚">
+            <StackPanel Orientation="Horizontal" Spacing="7">
+              <Path Stretch="Uniform" Data="{StaticResource IcCheck}"
+                    Stroke="{DynamicResource C_AccFg}" StrokeThickness="2" StrokeJoin="Round"
+                    VerticalAlignment="Center" Width="13" Height="13"/>
+              <TextBlock Text="应用配置"/>
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <!-- 网卡与当前状态 -->
+      <Border Classes="card sub" Padding="12,10">
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="76,Auto,*,Auto" ColumnSpacing="10">
+            <TextBlock Classes="nlbl" Text="选择网卡"/>
+            <ComboBox Grid.Column="1" MinWidth="300" MaxWidth="420"
+                      HorizontalAlignment="Left"
+                      ItemsSource="{Binding Interfaces}"
+                      SelectedItem="{Binding SelectedInterface}"
+                      ItemTemplate="{StaticResource IfItemTemplate}"/>
+            <Button Grid.Column="3" Classes="ghost nact" Content="刷新"
+                    Command="{Binding Ip.ReloadCommand}"
+                    ToolTip.Tip="重新读取网卡与持久化配置（不覆盖正在编辑的表单时会提示）"/>
+          </Grid>
+          <ProgressBar Classes="slim" Width="180" IsIndeterminate="True"
+                       HorizontalAlignment="Left" IsVisible="{Binding Ip.IsLoading}"/>
+          <TextBlock Text="{Binding Ip.SummaryText}" Classes="t-dim" FontSize="11.5"
+                     TextWrapping="Wrap" FontFamily="{StaticResource MonoFont}"/>
+          <TextBlock Text="{Binding Ip.Ipv6Text}" Classes="t-dim" FontSize="11"
+                     TextWrapping="Wrap" FontFamily="{StaticResource MonoFont}"/>
+          <WrapPanel>
+            <Border Classes="badge" Margin="0,0,8,4">
+              <TextBlock Text="{Binding Ip.SourceText}" FontSize="10.5"
+                         Foreground="{DynamicResource C_Fg2}"/>
+            </Border>
+            <TextBlock Text="{Binding Ip.PersistenceText}" Classes="t-dim" FontSize="11"
+                       TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="520"
+                       TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding Ip.PersistenceText}"/>
+          </WrapPanel>
+          <Button Classes="ghost" Content="读取持久化配置（需要 sudo）"
+                  Command="{Binding Ip.ReadPersistedCommand}"
+                  IsVisible="{Binding Ip.CanReadPersisted}" HorizontalAlignment="Left"/>
+          <TextBlock Text="{Binding Ip.UnsupportedText}" Foreground="{DynamicResource C_Warn}"
+                     FontSize="11.5" TextWrapping="Wrap"
+                     IsVisible="{Binding Ip.IsUnsupported}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- DHCP / 静态 -->
+      <StackPanel Orientation="Horizontal" Spacing="18" Margin="2,0,0,2">
+        <RadioButton Content="自动获取（DHCP）" IsChecked="{Binding Ip.UseDhcp}"
+                     FontSize="13" IsEnabled="{Binding !Ip.IsUnsupported}"/>
+        <RadioButton Content="静态 IP" IsChecked="{Binding Ip.UseStatic}"
+                     FontSize="13" IsEnabled="{Binding !Ip.IsUnsupported}"/>
+      </StackPanel>
+
+      <!-- 多地址 -->
+      <Border Classes="card sub" Padding="12,10" IsEnabled="{Binding Ip.UseStatic}">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="IPv4 地址（可多个）" Classes="t-h2" FontSize="12.5"/>
+            <Button Grid.Column="1" Classes="ghost" Content="添加地址"
+                    Command="{Binding Ip.AddAddressCommand}"/>
+          </Grid>
+          <ItemsControl ItemsSource="{Binding Ip.AddressRows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:IpAddressRowViewModel">
+                <Grid ColumnDefinitions="*,110,Auto" RowDefinitions="Auto,Auto"
+                      ColumnSpacing="8" Margin="0,0,0,4">
+                  <TextBox Classes="nfield" Text="{Binding Address}"
+                           Watermark="192.168.1.10" ToolTip.Tip="严格点分四段 IPv4"/>
+                  <TextBox Grid.Column="1" Classes="nfield" Text="{Binding Mask}"
+                           Watermark="24 或 255.255.255.0"
+                           ToolTip.Tip="前缀长度或点分掩码"/>
+                  <Button Grid.Column="2" Classes="toolmini" Command="{Binding RemoveCommand}"
+                          ToolTip.Tip="删除此地址">
+                    <Path Classes="icon c-danger" Data="{StaticResource IcX}"
+                          Width="12" Height="12" VerticalAlignment="Center"/>
+                  </Button>
+                  <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding ErrorText}"
+                             Foreground="{DynamicResource C_Danger}" FontSize="11"
+                             TextWrapping="Wrap"/>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Grid ColumnDefinitions="76,*" ColumnSpacing="10" Margin="0,4,0,0">
+            <TextBlock Classes="nlbl" Text="默认网关"/>
+            <TextBox Grid.Column="1" Classes="nfield" Text="{Binding Ip.GatewayText}"
+                     Watermark="192.168.1.1（可留空）"
+                     ToolTip.Tip="留空表示不设置默认路由；必须落在某个地址的子网内"/>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- 多 DNS -->
+      <Border Classes="card sub" Padding="12,10" IsEnabled="{Binding Ip.UseStatic}">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="DNS 服务器（可多个）" Classes="t-h2" FontSize="12.5"/>
+            <Button Grid.Column="1" Classes="ghost" Content="添加 DNS"
+                    Command="{Binding Ip.AddDnsCommand}"/>
+          </Grid>
+          <ItemsControl ItemsSource="{Binding Ip.DnsRows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DnsRowViewModel">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto"
+                      ColumnSpacing="8" Margin="0,0,0,4">
+                  <TextBox Classes="nfield" Text="{Binding Server}"
+                           Watermark="1.1.1.1" ToolTip.Tip="仅支持 IPv4 DNS"/>
+                  <Button Grid.Column="1" Classes="toolmini" Command="{Binding RemoveCommand}"
+                          ToolTip.Tip="删除此 DNS">
+                    <Path Classes="icon c-danger" Data="{StaticResource IcX}"
+                          Width="12" Height="12" VerticalAlignment="Center"/>
+                  </Button>
+                  <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding ErrorText}"
+                             Foreground="{DynamicResource C_Danger}" FontSize="11"
+                             TextWrapping="Wrap"/>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- 校验 / SSH 风险 -->
+      <TextBlock Text="{Binding Ip.ValidationText}" Foreground="{DynamicResource C_Danger}"
+                 FontSize="11.5" TextWrapping="Wrap"/>
+      <Border Classes="card sub" Padding="10,8" IsVisible="{Binding Ip.HasSshRisk}"
+              BorderBrush="{DynamicResource C_Warn}">
+        <TextBlock Text="{Binding Ip.SshRiskText}" Foreground="{DynamicResource C_Warn}"
+                   FontSize="11.5" TextWrapping="Wrap"/>
+      </Border>
+
+      <!-- 预览 -->
+      <Expander Header="配置预览" IsExpanded="{Binding Ip.IsPreviewOpen, Mode=TwoWay}">
+        <Border Classes="card sub" Padding="8" MaxHeight="260">
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <SelectableTextBlock Text="{Binding Ip.PreviewText}"
+                                 FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                 TextWrapping="Wrap" Foreground="{DynamicResource C_Fg2}"/>
+          </ScrollViewer>
+        </Border>
+      </Expander>
+
+      <!-- 待确认 / 自动回滚 -->
+      <Border Classes="card sub" Padding="10,8" IsVisible="{Binding Ip.IsPending}"
+              BorderBrush="{DynamicResource C_Warn}">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <StackPanel Spacing="3">
+            <TextBlock Text="{Binding Ip.PendingText}" FontSize="11.5" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding Ip.PendingRemaining, StringFormat='剩余 {0} 后自动回滚旧配置'}"
+                       Foreground="{DynamicResource C_Warn}" FontSize="12" FontWeight="SemiBold"/>
+          </StackPanel>
+          <Button Grid.Column="1" Classes="primary" Content="保留新配置"
+                  Command="{Binding Ip.CommitPendingCommand}"
+                  IsEnabled="{Binding !Ip.IsBusy}"
+                  ToolTip.Tip="确认新地址可连通后，取消 120 秒自动回滚"/>
+          <Button Grid.Column="2" Classes="danger" Content="立即回滚"
+                  Command="{Binding Ip.RollbackPendingCommand}"
+                  IsEnabled="{Binding !Ip.IsBusy}"/>
+        </Grid>
+      </Border>
+
+      <!-- 应用日志 / 诊断（失败时可复制反馈） -->
+      <Expander Header="应用日志 / 诊断" IsExpanded="{Binding Ip.IsApplyLogOpen, Mode=TwoWay}">
+        <Border Classes="card sub" Padding="8" MaxHeight="260">
+          <DockPanel>
+            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+              <Button Classes="ghost" Content="诊断…" Margin="0,0,8,4"
+                      Command="{Binding Ip.DiagnoseCommand}"
+                      ToolTip.Tip="只读收集 ip/netplan/NM/回滚状态，便于反馈"/>
+              <Button Classes="ghost" Content="复制日志" Margin="0,0,0,4"
+                      Click="OnCopyApplyLog"/>
+            </WrapPanel>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+              <SelectableTextBlock Text="{Binding Ip.ApplyLogText}"
+                                   FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                   TextWrapping="Wrap" Foreground="{DynamicResource C_Fg2}"/>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Expander>
+
+      <!-- 状态 -->
+      <TextBlock Text="{Binding Ip.IfStatus}" FontSize="11.5" TextWrapping="Wrap"
+                 Foreground="{DynamicResource C_Fg2}"/>
+      <TextBlock Text="应用后会校验地址/网关；若 SSH 断开或校验失败，服务器端 120 秒后自动恢复旧配置。修改当前 SSH 地址时建议先把旧地址保留为第二个 IP。"
+                 Classes="t-dim" FontSize="11" TextWrapping="Wrap"/>
+    </StackPanel>
+  </Border>
+</UserControl>

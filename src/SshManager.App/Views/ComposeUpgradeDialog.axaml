@@ -1,0 +1,222 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SshManager.App.ViewModels"
+        x:Class="SshManager.App.Views.ComposeUpgradeDialog"
+        x:DataType="vm:ComposeUpgradeViewModel"
+        Title="升级 Compose 项目" Width="960" Height="640" MinWidth="820" MinHeight="520"
+        CanResize="True" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto">
+
+    <!-- 标题 -->
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,10">
+      <TextBlock Classes="t-title" Text="{Binding ProjectTitle, StringFormat='升级项目：{0}'}"/>
+      <TextBlock Classes="t-dim" FontSize="11.5"
+                 Text="左侧配置本地/远程目录与升级方式，点击“扫描变更”比对文件；确认后开始升级（自动备份，失败可回滚）。"/>
+    </StackPanel>
+
+    <!-- 主体 -->
+    <Grid Grid.Row="1" ColumnDefinitions="370,*" ColumnSpacing="12">
+
+      <!-- 左：设置 -->
+      <Border Grid.Column="0" Classes="card" Padding="12">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="8">
+
+            <TextBlock Text="本地部署目录" Classes="t-dim" FontSize="12"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <TextBox Text="{Binding LocalDir}" Watermark="例如 D:\work\my-app"
+                       FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+              <Button Grid.Column="1" Classes="ghost" Content="浏览…"
+                      Command="{Binding BrowseLocalCommand}"/>
+            </Grid>
+            <TextBlock Classes="t-dim" FontSize="11" TextWrapping="Wrap" LineHeight="16"
+                       Text="同步整个目录并按相对路径映射；若 jar 在 target 下，可用下方“添加文件…”单独映射为远程文件名。"/>
+
+            <TextBlock Text="远程项目目录" Classes="t-dim" FontSize="12"/>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <TextBox Text="{Binding RemoteDir}" Watermark="/opt/my-app"
+                       FontFamily="{StaticResource MonoFont}" FontSize="12"/>
+              <Button Grid.Column="1" Classes="ghost" Content="浏览…"
+                      Command="{Binding BrowseRemoteCommand}"/>
+            </Grid>
+
+            <TextBlock Text="compose 文件（一行一个，可多个 -f）" Classes="t-dim" FontSize="12"/>
+            <TextBox Text="{Binding ComposeFilesText}" AcceptsReturn="True" Height="62"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Watermark="/opt/my-app/docker-compose.yml"/>
+
+            <TextBlock Text="排除规则（一行一个；无 / 匹配任意目录名）" Classes="t-dim" FontSize="12"/>
+            <TextBox Text="{Binding ExcludeText}" AcceptsReturn="True" Height="74"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"/>
+
+            <TextBlock Text="升级方式" Classes="t-dim" FontSize="12"/>
+            <ComboBox SelectedIndex="{Binding ModeIndex, Mode=TwoWay}" HorizontalAlignment="Stretch">
+              <ComboBoxItem Content="自动判断（推荐）"/>
+              <ComboBoxItem Content="构建镜像后启动（up -d --build）"/>
+              <ComboBoxItem Content="仅重建容器（up -d）"/>
+              <ComboBoxItem Content="拉取镜像后启动（pull + up -d）"/>
+              <ComboBoxItem Content="自定义命令"/>
+            </ComboBox>
+
+            <TextBlock Text="自定义升级命令（在项目目录执行）" Classes="t-dim" FontSize="12"
+                       IsVisible="{Binding IsCustomMode}"/>
+            <TextBox Text="{Binding CustomCommand}" IsVisible="{Binding IsCustomMode}"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     Watermark="例如 docker compose up -d --build app"/>
+
+            <CheckBox Content="强制重建容器（挂载 jar/配置时建议保持勾选，默认开启）"
+                      IsChecked="{Binding ForceRecreate, Mode=TwoWay}"
+                      FontSize="12"/>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <CheckBox Content="升级前备份" IsChecked="{Binding BackupEnabled, Mode=TwoWay}"
+                        FontSize="12"/>
+              <TextBlock Text="保留份数" Classes="t-dim" FontSize="12"
+                         VerticalAlignment="Center"/>
+              <NumericUpDown Value="{Binding BackupKeep, Mode=TwoWay}" Minimum="1" Maximum="50"
+                             Width="100" FontSize="12" FormatString="0"/>
+            </StackPanel>
+            <CheckBox Content="保存为项目绑定（下次一键升级）"
+                      IsChecked="{Binding SaveBinding, Mode=TwoWay}" FontSize="12"/>
+
+            <Border Height="1" Background="{DynamicResource C_Border}" Margin="0,4"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="额外文件（可选，映射到远程相对路径）" Classes="t-dim"
+                         FontSize="12" VerticalAlignment="Center"/>
+              <Button Classes="ghost" Content="添加文件…" Height="26" Padding="8,2"
+                      FontSize="11" Command="{Binding AddFilesCommand}"/>
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding ExtraFiles}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ComposeExtraFileRowViewModel">
+                  <Grid ColumnDefinitions="*,150,Auto" ColumnSpacing="6" Margin="0,0,0,4">
+                    <TextBlock Text="{Binding FileName}" FontSize="11.5"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               ToolTip.Tip="{Binding LocalPath}"/>
+                    <TextBox Grid.Column="1" Text="{Binding RemoteRelativePath}"
+                             FontFamily="{StaticResource MonoFont}" FontSize="11"
+                             Watermark="远程相对路径"/>
+                    <Button Grid.Column="2" Classes="toolmini" Command="{Binding RemoveCommand}"
+                            ToolTip.Tip="移除">
+                      <Path Classes="icon c-danger" Data="{StaticResource IcX}"
+                            Width="12" Height="12" VerticalAlignment="Center"/>
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- 右：预览 -->
+      <Border Grid.Column="1" Classes="card" Padding="12">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8">
+            <WrapPanel>
+              <Button Classes="primary" Content="扫描变更" Margin="0,0,10,6"
+                      Command="{Binding ScanCommand}" IsEnabled="{Binding !IsScanning}"/>
+              <CheckBox Content="强制上传全部（含未变化）" IsChecked="{Binding ForceAll, Mode=TwoWay}"
+                        FontSize="12" VerticalAlignment="Center" Margin="0,0,10,6"/>
+              <ProgressBar Classes="slim" Width="16" IsIndeterminate="True"
+                           IsVisible="{Binding IsScanning}" VerticalAlignment="Center"
+                           Margin="0,0,10,6"/>
+            </WrapPanel>
+            <TextBlock Text="{Binding SummaryText}" Classes="t-h2" FontSize="12.5"/>
+            <TextBlock Text="{Binding RemoteStateText}" Classes="t-dim" FontSize="11.5"/>
+          </StackPanel>
+
+          <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+            <TextBlock Text="将执行命令" Classes="t-dim" FontSize="11.5"/>
+            <Border Classes="card sub" Padding="8,6">
+              <SelectableTextBlock Text="{Binding CommandPreview}"
+                                   FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource C_Fg2}"/>
+            </Border>
+            <TextBlock Text="{Binding BackupPreview, StringFormat='备份：{0}'}"
+                       Classes="t-dim" FontSize="11" TextTrimming="CharacterEllipsis"/>
+            <ScrollViewer MaxHeight="100" VerticalScrollBarVisibility="Auto"
+                          IsVisible="{Binding HasWarnings}">
+              <ItemsControl ItemsSource="{Binding Warnings}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding StringFormat='⚠ {0}'}"
+                               Foreground="{DynamicResource C_Warn}" FontSize="11"
+                               TextWrapping="Wrap"/>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </StackPanel>
+
+          <Border Classes="card sub" Padding="0" ClipToBounds="True" MinHeight="120">
+            <DataGrid ItemsSource="{Binding Changes}" AutoGenerateColumns="False"
+                      IsReadOnly="True" CanUserResizeColumns="True"
+                      HeadersVisibility="Column" GridLinesVisibility="None"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                      Background="Transparent" BorderThickness="0" RowBackground="Transparent">
+              <DataGrid.Columns>
+                <DataGridTemplateColumn Header="上传" Width="56">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:ComposeChangeRowViewModel">
+                      <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                IsEnabled="{Binding Selectable}"
+                                HorizontalAlignment="Center"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="类型" Width="72">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:ComposeChangeRowViewModel">
+                      <TextBlock Text="{Binding KindText}" Foreground="{Binding KindBrush}"
+                                 FontSize="11.5" VerticalAlignment="Center"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="相对路径" Width="*">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:ComposeChangeRowViewModel">
+                      <TextBlock Text="{Binding RelativePath}" Classes="mono" FontSize="11.5"
+                                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                 ToolTip.Tip="{Binding RelativePath}"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="本地" Width="82">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:ComposeChangeRowViewModel">
+                      <TextBlock Text="{Binding LocalSizeText}" FontSize="11"
+                                 Foreground="{DynamicResource C_Fg3}"
+                                 VerticalAlignment="Center"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="远程" Width="82">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate x:DataType="vm:ComposeChangeRowViewModel">
+                      <TextBlock Text="{Binding RemoteSizeText}" FontSize="11"
+                                 Foreground="{DynamicResource C_Fg3}"
+                                 VerticalAlignment="Center"/>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+              </DataGrid.Columns>
+            </DataGrid>
+          </Border>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <!-- 底部 -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" Margin="0,12,0,0">
+      <TextBlock Text="{Binding StatusText}" Classes="t-dim" FontSize="11.5"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+      <Button Grid.Column="1" Classes="ghost" Content="取消" MinWidth="88"
+              Click="OnCancel"/>
+      <Button Grid.Column="2" Classes="primary" Content="开始升级" MinWidth="110"
+              IsEnabled="{Binding CanStart}" Click="OnStart"/>
+    </Grid>
+  </Grid>
+</Window>

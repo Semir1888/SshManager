@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:SshManager.App.ViewModels"
+        x:Class="SshManager.App.Views.NetworkApplyDialog"
+        x:DataType="vm:NetworkApplyDialogViewModel"
+        Title="应用网络配置" Width="760" Height="640" MinWidth="640" MinHeight="520"
+        CanResize="True" ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource C_Bg}">
+  <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto">
+
+    <StackPanel Grid.Row="0" Spacing="4" Margin="0,0,0,10">
+      <TextBlock Classes="t-title" Text="应用网络配置"/>
+      <TextBlock Classes="t-dim" FontSize="11.5" TextWrapping="Wrap"
+                 Text="应用后会校验地址/网关是否生效；确认成功则取消自动回滚。若 SSH 断开或校验失败，服务器端将在 120 秒后自动恢复旧配置。"/>
+    </StackPanel>
+
+    <StackPanel Grid.Row="1" Spacing="8" Margin="0,0,0,8">
+      <Border Classes="card sub" Padding="10,8">
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10">
+          <TextBlock Classes="t-dim" FontSize="12" Text="后端"/>
+          <TextBlock Grid.Column="1" Text="{Binding BackendText}" FontSize="12" FontWeight="SemiBold"/>
+          <TextBlock Grid.Row="1" Classes="t-dim" FontSize="12" Text="目标"/>
+          <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding TargetText}"
+                     FontFamily="{StaticResource MonoFont}" FontSize="11.5"
+                     TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TargetText}"/>
+          <TextBlock Grid.Row="2" Classes="t-dim" FontSize="12" Text="渲染器"/>
+          <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RendererText}" FontSize="11.5"/>
+        </Grid>
+      </Border>
+
+      <Border Classes="card sub" Padding="10,8" IsVisible="{Binding HasErrors}"
+              BorderBrush="{DynamicResource C_Danger}">
+        <StackPanel Spacing="4">
+          <TextBlock Text="配置存在错误，无法应用" FontSize="12" FontWeight="SemiBold"
+                     Foreground="{DynamicResource C_Danger}"/>
+          <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" FontSize="11.5"
+                     Foreground="{DynamicResource C_Danger}"/>
+        </StackPanel>
+      </Border>
+
+      <ItemsControl ItemsSource="{Binding Warnings}" IsVisible="{Binding HasWarnings}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String">
+            <TextBlock Text="{Binding StringFormat='⚠ {0}'}" FontSize="11.5"
+                       Foreground="{DynamicResource C_Warn}" TextWrapping="Wrap" Margin="0,0,0,3"/>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Classes="card sub" Padding="10,8" IsVisible="{Binding NeedTakeover}">
+        <StackPanel Spacing="6">
+          <CheckBox Content="允许备份并接管其他 netplan 文件中的该网卡 IPv4 配置"
+                    IsChecked="{Binding AllowTakeover, Mode=TwoWay}" FontSize="12"/>
+          <TextBlock Text="接管会先备份原文件再移除其配置；回滚时会还原。若文件包含其他网卡或复杂结构，程序会拒绝接管。"
+                     Classes="t-dim" FontSize="11" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+
+      <Border Classes="card sub" Padding="10,8" IsVisible="{Binding HasSshRisk}"
+              BorderBrush="{DynamicResource C_Warn}">
+        <StackPanel Spacing="6">
+          <TextBlock Text="{Binding SshRiskText}" FontSize="11.5"
+                     Foreground="{DynamicResource C_Warn}" TextWrapping="Wrap"/>
+          <CheckBox Content="我了解 SSH 可能中断；若断开，120 秒后会自动回滚"
+                    IsChecked="{Binding AcceptRisk, Mode=TwoWay}" FontSize="12"/>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <Border Grid.Row="2" Classes="card" Padding="0" ClipToBounds="True" MinHeight="120">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="配置预览（不含密码）" Classes="t-dim"
+                   FontSize="11.5" Margin="10,8,10,4"/>
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <SelectableTextBlock Text="{Binding PreviewText}" FontFamily="{StaticResource MonoFont}"
+                               FontSize="11.5" TextWrapping="Wrap" Margin="10,0,10,10"
+                               Foreground="{DynamicResource C_Fg2}"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10" Margin="0,12,0,0">
+      <TextBlock Classes="t-dim" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"
+                 Text="提示：修改当前 SSH 地址时，建议先把旧地址保留为第二个 IP，确认新地址可连通后再删除。"/>
+      <Button Grid.Column="1" Classes="ghost" Content="取消" MinWidth="88" Click="OnCancel"/>
+      <Button Grid.Column="2" Classes="primary" Content="应用配置" MinWidth="110"
+              IsEnabled="{Binding CanApply}" Click="OnApply"/>
+    </Grid>
+  </Grid>
+</Window>

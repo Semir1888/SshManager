@@ -1,0 +1,414 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:SshManager.App.ViewModels"
+             x:Class="SshManager.App.Views.ComposeView"
+             x:DataType="vm:ComposeViewModel">
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+
+    <!-- ══════════ 状态条 ══════════ -->
+    <Border Grid.Row="0" Classes="card sub" Padding="14,8" Margin="0,0,0,10">
+      <WrapPanel>
+        <Path Classes="icon c-acc" Data="{StaticResource IcDocker}" Width="18" Height="18"
+              VerticalAlignment="Center" Margin="0,0,10,4"/>
+        <TextBlock Text="Docker Compose" FontWeight="SemiBold" FontSize="13.5"
+                   VerticalAlignment="Center" Margin="0,0,10,4"/>
+        <TextBlock Text="{Binding VersionText}" Classes="t-dim" FontSize="12"
+                   VerticalAlignment="Center" Margin="0,0,10,4" IsVisible="{Binding IsReady}"/>
+        <Border Classes="badge" VerticalAlignment="Center" Margin="0,0,10,4"
+                IsVisible="{Binding SudoMode}"
+                ToolTip.Tip="Docker 命令经 sudo 执行（密码自动经 stdin 注入）">
+          <TextBlock Text="sudo 模式" FontSize="11" Foreground="{DynamicResource C_Warn}"/>
+        </Border>
+        <TextBlock Text="{Binding ProjectsCountText}" Classes="t-dim" FontSize="12"
+                   VerticalAlignment="Center" Margin="0,0,10,4" IsVisible="{Binding IsReady}"/>
+        <ProgressBar Classes="slim" Width="16" IsIndeterminate="True" Margin="0,0,10,4"
+                     IsVisible="{Binding IsLoading}" VerticalAlignment="Center"/>
+        <Button Classes="tool" Margin="0,0,8,4" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="刷新项目与服务状态" IsVisible="{Binding IsReady}">
+          <Path Classes="icon c-dim" Data="{StaticResource IcRefresh}" VerticalAlignment="Center"/>
+        </Button>
+        <ToggleButton Classes="tab" Content="自动刷新" Margin="0,0,0,4"
+                      IsChecked="{Binding AutoRefresh, Mode=TwoWay}"
+                      ToolTip.Tip="每 5 秒刷新项目列表与当前项目详情"
+                      IsVisible="{Binding IsReady}"/>
+      </WrapPanel>
+    </Border>
+
+    <!-- ══════════ 工具栏 ══════════ -->
+    <Border Grid.Row="1" Margin="0,0,0,10" IsVisible="{Binding IsReady}">
+      <WrapPanel>
+        <TextBox Width="220" Margin="0,0,8,8" Text="{Binding SearchText}"
+                 Watermark="搜索项目 / 目录 / compose 文件…"/>
+        <Button Classes="ghost" Margin="0,0,8,8" Content="添加项目"
+                Command="{Binding AddProjectCommand}"
+                ToolTip.Tip="手动添加一个 compose 项目（用于尚未运行或未被自动发现的项目）"/>
+        <Button Classes="ghost" Margin="0,0,0,8" Content="刷新"
+                Command="{Binding RefreshCommand}"/>
+      </WrapPanel>
+    </Border>
+
+    <!-- ══════════ 内容区 ══════════ -->
+    <Panel Grid.Row="2">
+
+      <!-- 未就绪提示卡 -->
+      <Border Classes="card" Padding="28,24" Margin="0,4,0,10"
+              IsVisible="{Binding !IsReady}" VerticalAlignment="Center"
+              HorizontalAlignment="Center">
+        <StackPanel Spacing="12" HorizontalAlignment="Center" MaxWidth="660">
+          <StackPanel Spacing="8" IsVisible="{Binding IsLoadingState}">
+            <TextBlock Text="正在检测服务器上的 Docker Compose…" Classes="t-h2"
+                       HorizontalAlignment="Center"/>
+            <ProgressBar Classes="slim" IsIndeterminate="True" Width="220"
+                         HorizontalAlignment="Center"/>
+          </StackPanel>
+          <StackPanel Spacing="10" IsVisible="{Binding IsNotInstalled}">
+            <Path Classes="icon c-warn" Data="{StaticResource IcInfo}" Width="26" Height="26"
+                  HorizontalAlignment="Center"/>
+            <TextBlock Text="服务器上未安装 Docker Compose" Classes="t-h2"
+                       HorizontalAlignment="Center"/>
+            <TextBlock TextWrapping="Wrap" TextAlignment="Center" Classes="t-dim" LineHeight="20"
+                       Text="请先在 Docker 页确认 Docker 已安装并可用。然后安装 Compose 插件：sudo apt-get install docker-compose-plugin；或独立版：sudo apt-get install docker-compose。安装后点“重新检测”。"/>
+          </StackPanel>
+          <StackPanel Spacing="10" IsVisible="{Binding IsFailedState}">
+            <Path Classes="icon c-danger" Data="{StaticResource IcInfo}" Width="26" Height="26"
+                  HorizontalAlignment="Center"/>
+            <TextBlock Text="Docker Compose 不可用" Classes="t-h2" HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding FailText}" TextWrapping="Wrap" TextAlignment="Center"
+                       LineHeight="20" Foreground="{DynamicResource C_Danger}"/>
+          </StackPanel>
+          <Button Classes="ghost" Command="{Binding RecheckCommand}" Content="重新检测"
+                  HorizontalAlignment="Center" IsVisible="{Binding !IsLoadingState}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 主从布局 -->
+      <Grid IsVisible="{Binding IsReady}" ColumnDefinitions="250,*" ColumnSpacing="10">
+
+        <!-- 左：项目列表 -->
+        <Border Grid.Column="0" Classes="card" Padding="6" ClipToBounds="True" MinHeight="80">
+          <ListBox Classes="profiles" ItemsSource="{Binding FilteredProjects}"
+                   SelectedItem="{Binding SelectedProject, Mode=TwoWay}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ComposeProjectRowViewModel">
+                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto"
+                      Margin="0,2">
+                  <Ellipse Grid.Row="0" Grid.Column="0" Width="8" Height="8"
+                           Fill="{Binding StateBrush}" VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                  <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Name}"
+                             FontWeight="SemiBold" FontSize="12.5"
+                             TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                  <Border Grid.Row="0" Grid.Column="2" Classes="badge" Padding="6,1"
+                          IsVisible="{Binding IsManual}">
+                    <TextBlock Text="手动" FontSize="10"
+                               Foreground="{DynamicResource C_Fg3}"/>
+                  </Border>
+                  <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                             Text="{Binding StatusText}" FontSize="11"
+                             Foreground="{DynamicResource C_Fg3}"
+                             TextTrimming="CharacterEllipsis"/>
+                  <StackPanel Grid.Row="2" Grid.Column="1"
+                              Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding ServiceCountText}" FontSize="10.5"
+                               Foreground="{DynamicResource C_Fg3}"/>
+                    <TextBlock Text="{Binding BindingText}" FontSize="10.5"
+                               Foreground="{DynamicResource C_Fg3}"
+                               TextTrimming="CharacterEllipsis"/>
+                  </StackPanel>
+                  <Border Grid.Row="2" Grid.Column="2" Classes="badge" Padding="5,1"
+                          IsVisible="{Binding BindingMismatch}"
+                          ToolTip.Tip="本地绑定中的远程目录与服务器发现结果不一致">
+                    <TextBlock Text="绑定不一致" FontSize="10"
+                               Foreground="{DynamicResource C_Warn}"/>
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Border>
+
+        <!-- 右：项目详情 -->
+        <Border Grid.Column="1" Classes="card" Padding="12" ClipToBounds="True" MinHeight="80">
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8"
+                        IsVisible="{Binding HasProject}">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <TextBlock Text="{Binding ProjectHeaderText}" Classes="t-h2"
+                           FontSize="15" VerticalAlignment="Center"
+                           MaxWidth="240" TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding ProjectHeaderText}"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
+                            VerticalAlignment="Center">
+                  <Ellipse Width="8" Height="8" Fill="{Binding SelectedProject.StateBrush}"
+                           VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding ProjectStateText}" FontSize="11.5"
+                             Foreground="{DynamicResource C_Fg2}" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding ProjectStatusText}" FontSize="11"
+                             Foreground="{DynamicResource C_Fg3}" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding SelectedProject.ErrorText}"
+                           Foreground="{DynamicResource C_Danger}" FontSize="11"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           MaxWidth="200" ToolTip.Tip="{Binding SelectedProject.ErrorText}"/>
+              </Grid>
+
+              <TextBlock Text="{Binding ComposeFilesText}" Classes="mono" FontSize="11.5"
+                         Foreground="{DynamicResource C_Fg2}"
+                         TextTrimming="CharacterEllipsis"
+                         ToolTip.Tip="{Binding ComposeFilesText}"/>
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="{Binding WorkingDirText}" FontSize="11"
+                           Foreground="{DynamicResource C_Fg3}"
+                           TextTrimming="CharacterEllipsis" MaxWidth="360"
+                           ToolTip.Tip="{Binding WorkingDirText}"/>
+                <TextBlock Text="{Binding BindingText}" FontSize="11"
+                           Foreground="{DynamicResource C_Fg3}"
+                           TextTrimming="CharacterEllipsis" MaxWidth="300"
+                           ToolTip.Tip="{Binding BindingText}"/>
+              </StackPanel>
+
+              <!-- 操作行：窄窗口自动换行 -->
+              <WrapPanel Margin="0,4,0,0">
+                <Button Classes="ghost" Content="启动" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.UpCommand}"/>
+                <Button Classes="ghost" Content="停止" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.StopCommand}"/>
+                <Button Classes="ghost" Content="重启" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.RestartCommand}"/>
+                <Button Classes="ghost" Content="拉取镜像" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.PullCommand}"/>
+                <Button Classes="ghost" Content="构建镜像" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.BuildCommand}"/>
+                <Button Classes="ghost" Content="强制重建" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.RecreateCommand}"/>
+                <Button Classes="ghost" Content="日志" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.LogsCommand}"/>
+                <Button Classes="primary" Content="升级…" Margin="0,0,6,6" Height="30"
+                        Padding="14,4" FontSize="12"
+                        Command="{Binding SelectedProject.UpgradeCommand}"
+                        ToolTip.Tip="比对本地目录、备份、上传并重建容器"/>
+                <Button Classes="ghost" Content="备份…" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.BackupsCommand}"/>
+                <Button Classes="ghost" Content="编辑 compose" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.EditComposeCommand}"
+                        ToolTip.Tip="跳转到文件管理并打开 compose 文件"/>
+                <Button Classes="ghost" Content="打开目录" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.OpenDirCommand}"/>
+                <Button Classes="ghost" Content="编辑绑定" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.EditBindingCommand}"/>
+                <Button Classes="ghost" Content="移除绑定" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        IsVisible="{Binding SelectedProject.HasBinding}"
+                        Command="{Binding SelectedProject.RemoveBindingCommand}"/>
+                <Button Classes="danger" Content="停止并移除" Margin="0,0,6,6" Height="30"
+                        Padding="12,4" FontSize="12"
+                        Command="{Binding SelectedProject.DownCommand}"
+                        ToolTip.Tip="docker compose down（保留数据卷）"/>
+              </WrapPanel>
+
+              <!-- 升级进度 -->
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,2,0,0"
+                    IsVisible="{Binding IsDeploying}">
+                <StackPanel Spacing="3">
+                  <TextBlock Text="{Binding DeployStatusText}" FontSize="11.5"
+                             Foreground="{DynamicResource C_Fg2}"
+                             TextTrimming="CharacterEllipsis"/>
+                  <ProgressBar Classes="slim" Value="{Binding DeployPercent}" Maximum="100"/>
+                </StackPanel>
+                <Button Grid.Column="1" Classes="ghost" Content="取消" Height="30"
+                        Padding="12,4" FontSize="12" Command="{Binding CancelDeployCommand}"/>
+              </Grid>
+            </StackPanel>
+
+            <!-- 服务 / 容器表 -->
+            <Panel>
+              <DataGrid ItemsSource="{Binding Services}" AutoGenerateColumns="False"
+                        IsReadOnly="True" CanUserResizeColumns="True"
+                        HeadersVisibility="Column" GridLinesVisibility="None"
+                        SelectionMode="Single"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Auto"
+                        Background="Transparent" BorderThickness="0"
+                        RowBackground="Transparent"
+                        IsVisible="{Binding HasProject}">
+                <DataGrid.Columns>
+                  <DataGridTemplateColumn Header="服务" Width="120">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="vm:ComposeServiceRowViewModel">
+                        <TextBlock Text="{Binding ServiceName}" FontSize="12"
+                                   FontWeight="SemiBold" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+
+                  <DataGridTemplateColumn Header="容器" Width="1.3*">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="vm:ComposeServiceRowViewModel">
+                        <TextBlock Text="{Binding ContainerName}" Classes="mono" FontSize="11.5"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding ContainerName}"/>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+
+                  <DataGridTemplateColumn Header="状态" Width="92">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="vm:ComposeServiceRowViewModel">
+                        <StackPanel Orientation="Horizontal" Spacing="6"
+                                    VerticalAlignment="Center">
+                          <Ellipse Width="7" Height="7" Fill="{Binding StateBrush}"
+                                   VerticalAlignment="Center"/>
+                          <TextBlock Text="{Binding StateLabel}" FontSize="11.5"
+                                     VerticalAlignment="Center"/>
+                        </StackPanel>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+
+                  <DataGridTemplateColumn Header="健康" Width="72">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="vm:ComposeServiceRowViewModel">
+                        <TextBlock Text="{Binding HealthText}" FontSize="11.5"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource C_Fg2}"/>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+
+                  <DataGridTemplateColumn Header="镜像" Width="1.3*">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="vm:ComposeServiceRowViewModel">
+                        <TextBlock Text="{Binding Image}" Classes="mono" FontSize="11"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding Image}"/>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+
+                  <DataGridTemplateColumn Header="端口" Width="1.4*">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="vm:ComposeServiceRowViewModel">
+                        <TextBlock Text="{Binding PortsText}" Classes="mono" FontSize="11"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding PortsText}"/>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+
+                  <DataGridTemplateColumn Header="操作" Width="228">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate x:DataType="vm:ComposeServiceRowViewModel">
+                        <StackPanel Orientation="Horizontal" Spacing="4"
+                                    VerticalAlignment="Center">
+                          <Button Classes="ghost" Content="日志" Height="26" Padding="8,2"
+                                  FontSize="11" Command="{Binding LogsCommand}"/>
+                          <Button Classes="ghost" Content="重启" Height="26" Padding="8,2"
+                                  FontSize="11" Command="{Binding RestartCommand}"
+                                  IsEnabled="{Binding HasContainer}"/>
+                          <Button Classes="ghost" Content="重建" Height="26" Padding="8,2"
+                                  FontSize="11" Command="{Binding RecreateCommand}"
+                                  IsEnabled="{Binding HasContainer}"/>
+                          <Button Classes="ghost" Content="终端" Height="26" Padding="8,2"
+                                  FontSize="11" Command="{Binding ExecCommand}"
+                                  IsEnabled="{Binding HasContainer}"/>
+                        </StackPanel>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                </DataGrid.Columns>
+              </DataGrid>
+
+              <StackPanel IsVisible="{Binding !HasProject}" Spacing="8"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Classes="icon c-dim" Data="{StaticResource IcDocker}" Width="28" Height="28"
+                      HorizontalAlignment="Center"/>
+                <TextBlock Text="选择左侧项目查看服务与容器" Classes="t-dim"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="没有项目？点击上方“添加项目”，或先在服务器上启动 compose。"
+                           Classes="t-dim" FontSize="11" HorizontalAlignment="Center"/>
+              </StackPanel>
+            </Panel>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </Panel>
+
+    <!-- ══════════ 日志拖拽条 ══════════ -->
+    <Border Grid.Row="3" Height="8" Background="Transparent" Cursor="SizeNorthSouth"
+            IsVisible="{Binding PanelOpen}"
+            PointerPressed="OnLogGripPressed" PointerMoved="OnLogGripMoved"
+            PointerReleased="OnLogGripReleased" ToolTip.Tip="拖动调节日志面板高度">
+      <Border Width="44" Height="3" CornerRadius="2" VerticalAlignment="Center"
+              HorizontalAlignment="Center" Background="{DynamicResource C_Border}"/>
+    </Border>
+
+    <!-- ══════════ 日志 / 操作输出 / 部署日志 ══════════ -->
+    <Border Grid.Row="4" Classes="card sub" Margin="0,2,0,0" Padding="12,8"
+            Height="{Binding LogPanelHeight}" IsVisible="{Binding PanelOpen}">
+      <DockPanel>
+        <Border DockPanel.Dock="Top" Margin="4,0,4,6">
+          <WrapPanel>
+            <TextBlock Classes="t-h2" Text="{Binding LogTitle}" VerticalAlignment="Center"
+                       Margin="0,0,10,6" TextTrimming="CharacterEllipsis" MaxWidth="280"/>
+            <TextBlock Text="尾部行数" Classes="t-dim" VerticalAlignment="Center"
+                       FontSize="12" Margin="0,0,6,6"/>
+            <ComboBox x:Name="TailBox" ItemsSource="{Binding TailChoices}"
+                      SelectedIndex="1" Width="90" Margin="0,0,10,6"
+                      SelectionChanged="OnTailChanged"/>
+            <ToggleButton Classes="tab" Content="实时" Margin="0,0,10,6"
+                          IsChecked="{Binding FollowLogs, Mode=TwoWay}"
+                          ToolTip.Tip="持续跟踪 docker compose logs -f；关闭后只读取尾部"/>
+            <ProgressBar Classes="slim" Width="16" IsIndeterminate="True" Margin="0,0,10,6"
+                         IsVisible="{Binding LogsLoading}" VerticalAlignment="Center"/>
+            <Button Classes="ghost" Height="28" Padding="12,4" Content="刷新" Margin="0,0,8,6"
+                    Command="{Binding RefreshLogsCommand}" IsVisible="{Binding !LogsLoading}"/>
+            <Button Classes="ghost" Height="28" Padding="12,4" Content="停止" Margin="0,0,8,6"
+                    Command="{Binding StopLogsCommand}" IsVisible="{Binding IsLogFollowing}"/>
+            <Button Classes="ghost" Height="28" Padding="12,4" Content="复制全部" Margin="0,0,8,6"
+                    Click="OnCopyAllLogs"
+                    ToolTip.Tip="复制全部日志（也可在日志区用 Ctrl+A / Ctrl+C）"/>
+            <Button Classes="ghost" Height="28" Padding="12,4" Content="清空" Margin="0,0,8,6"
+                    Command="{Binding ClearLogCommand}"/>
+            <Button Classes="danger" Height="28" Padding="12,4" Content="回滚" Margin="0,0,8,6"
+                    Command="{Binding RollbackCommand}" IsVisible="{Binding HasRollback}"
+                    ToolTip.Tip="恢复最近一次升级的备份并强制重建容器"/>
+            <Button Classes="tool" Command="{Binding TogglePanelCommand}" Margin="0,0,0,6"
+                    ToolTip.Tip="收起">
+              <Path Classes="icon c-dim" Data="{StaticResource IcChevronDown}"
+                    VerticalAlignment="Center"/>
+            </Button>
+          </WrapPanel>
+        </Border>
+        <ScrollViewer x:Name="LogScroller"
+                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <SelectableTextBlock x:Name="LogText" Text="{Binding Logs.Text}"
+                               FontFamily="{StaticResource MonoFont}" FontSize="12"
+                               Foreground="{DynamicResource C_Fg2}" TextWrapping="NoWrap"
+                               Margin="4,0" Focusable="True" Cursor="IBeam"
+                               KeyDown="OnLogKeyDown"
+                               ToolTip.Tip="可选中复制：Ctrl+A 全选 · Ctrl+C 复制"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- ══════════ 底部提示 ══════════ -->
+    <Border Grid.Row="5" Margin="0,8,0,0" IsVisible="{Binding IsReady}">
+      <TextBlock Text="升级会先备份被覆盖的文件；失败后可回滚 · 自动模式：有 Dockerfile 时 --build，否则文件变化时强制重建 · 编辑 compose 会跳到文件管理"
+                 Classes="t-dim" FontSize="11" HorizontalAlignment="Right"
+                 TextTrimming="CharacterEllipsis"/>
+    </Border>
+  </Grid>
+</UserControl>

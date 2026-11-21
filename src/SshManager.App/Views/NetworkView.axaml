@@ -1,22 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:SshManager.App.ViewModels"
+             xmlns:v="using:SshManager.App.Views"
              x:Class="SshManager.App.Views.NetworkView"
              x:DataType="vm:NetworkViewModel">
-  <UserControl.Resources>
-    <DataTemplate x:Key="IfItemTemplate" x:DataType="vm:NetIfItemViewModel">
-      <StackPanel Spacing="1">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
-          <Border Classes="badge">
-            <TextBlock Text="{Binding Kind}" FontSize="10.5" Classes="t-dim"/>
-          </Border>
-        </StackPanel>
-        <TextBlock Text="{Binding AddrText}" Classes="t-dim" FontSize="11"
-                   FontFamily="{StaticResource MonoFont}"/>
-      </StackPanel>
-    </DataTemplate>
-  </UserControl.Resources>
 
   <UserControl.Styles>
     <!-- 表单标签：统一宽度、统一灰色、垂直居中 -->
@@ -66,81 +53,8 @@
     <ScrollViewer>
       <StackPanel Spacing="12" Margin="0,16,0,0">
 
-        <!-- ══════════ ① 网卡 IP 配置 ══════════ -->
-        <Border Classes="card">
-          <StackPanel Spacing="12">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-              <StackPanel Orientation="Horizontal" Spacing="9">
-                <Path Classes="icon c-acc" Data="{StaticResource IcGlobe}"/>
-                <TextBlock Classes="cardh" Text="网卡 IP 配置"/>
-              </StackPanel>
-              <Button Grid.Column="1" Classes="primary nact" Command="{Binding ApplyIpCommand}"
-                      IsEnabled="{Binding !IfBusy}"
-                      ToolTip.Tip="应用后网络会短暂中断，SSH 可能断开">
-                <StackPanel Orientation="Horizontal" Spacing="7">
-                  <Path Stretch="Uniform" Data="{StaticResource IcCheck}" Stroke="{DynamicResource C_AccFg}"
-                        StrokeThickness="2" StrokeJoin="Round" VerticalAlignment="Center" Width="13" Height="13"/>
-                  <TextBlock Text="应用配置"/>
-                </StackPanel>
-              </Button>
-            </Grid>
-
-            <!-- 网卡选择 + 当前状态摘要 -->
-            <Border Classes="card sub" Padding="12,10">
-              <StackPanel Spacing="8">
-                <Grid ColumnDefinitions="76,300,Auto" ColumnSpacing="10">
-                  <TextBlock Classes="nlbl" Text="选择网卡"/>
-                  <ComboBox Grid.Column="1" ItemsSource="{Binding Interfaces}"
-                            SelectedItem="{Binding SelectedInterface}"
-                            ItemTemplate="{StaticResource IfItemTemplate}"
-                            HorizontalAlignment="Stretch"/>
-                  <ProgressBar Grid.Column="2" Classes="slim" Width="16" IsIndeterminate="True"
-                               IsVisible="{Binding IfBusy}" VerticalAlignment="Center"/>
-                </Grid>
-                <TextBlock Classes="t-dim" FontSize="11.5" TextWrapping="Wrap"
-                           IsVisible="{Binding HasInterface}" LineHeight="17">
-                  <Run Text="状态 "/><Run Text="{Binding SelectedInterface.StateText}" Foreground="{DynamicResource C_Fg}"/>
-                  <Run Text="　·　地址 "/><Run Text="{Binding SelectedInterface.AddrText}" Foreground="{DynamicResource C_Fg}" FontFamily="{StaticResource MonoFont}"/>
-                  <Run Text="　·　网关 "/><Run Text="{Binding SelectedInterface.Model.Gateway}" Foreground="{DynamicResource C_Fg}" FontFamily="{StaticResource MonoFont}"/>
-                  <Run Text="　·　DNS "/><Run Text="{Binding SelectedInterface.Model.Dns}" Foreground="{DynamicResource C_Fg}" FontFamily="{StaticResource MonoFont}"/>
-                  <Run Text="　·　管理 "/><Run Text="{Binding SelectedInterface.MethodText}" Foreground="{DynamicResource C_Fg}"/>
-                </TextBlock>
-              </StackPanel>
-            </Border>
-
-            <StackPanel Orientation="Horizontal" Spacing="18" Margin="2,0,0,2">
-              <RadioButton Content="自动获取（DHCP）" IsChecked="{Binding UseDhcp}" FontSize="13"/>
-              <RadioButton Content="静态 IP" IsChecked="{Binding UseStatic}" FontSize="13"/>
-            </StackPanel>
-
-            <!-- 静态参数表单（DHCP 时整块禁用变暗） -->
-            <Border Classes="card sub" Padding="12,10" IsEnabled="{Binding UseStatic}">
-              <Grid ColumnDefinitions="76,*,28,76,*" RowDefinitions="Auto,10,Auto" ColumnSpacing="10">
-                <TextBlock Classes="nlbl" Text="IP 地址"/>
-                <TextBox Grid.Column="1" Classes="nfield" Text="{Binding IpText}"
-                         Watermark="192.168.1.10" ToolTip.Tip="IPv4 地址"/>
-                <TextBlock Grid.Column="3" Classes="nlbl" Text="子网掩码"/>
-                <TextBox Grid.Column="4" Classes="nfield" Text="{Binding PrefixText}"
-                         Watermark="24 或 255.255.255.0" ToolTip.Tip="前缀长度或点分掩码"/>
-
-                <TextBlock Grid.Row="2" Classes="nlbl" Text="网关"/>
-                <TextBox Grid.Row="2" Grid.Column="1" Classes="nfield" Text="{Binding GatewayText}"
-                         Watermark="192.168.1.1" ToolTip.Tip="留空 = 不设置默认路由"/>
-                <TextBlock Grid.Row="2" Grid.Column="3" Classes="nlbl" Text="DNS"/>
-                <TextBox Grid.Row="2" Grid.Column="4" Classes="nfield" Text="{Binding DnsText}"
-                         Watermark="可多个，空格分隔" ToolTip.Tip="如 8.8.8.8 223.5.5.5"/>
-              </Grid>
-            </Border>
-
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-              <TextBlock Text="应用时网络会短暂中断，配置有误可能导致 SSH 失联（需到服务器本机恢复）；旧配置自动备份为 .bak。"
-                         Classes="t-dim" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"/>
-              <TextBlock Grid.Column="1" Text="{Binding IfStatus}" FontSize="12"
-                         Foreground="{DynamicResource C_Fg}" VerticalAlignment="Center"
-                         TextWrapping="Wrap" MaxWidth="400" TextAlignment="Right"/>
-            </Grid>
-          </StackPanel>
-        </Border>
+        <!-- ══════════ ① 网卡 IPv4 配置（多 IP / 持久化 / 120 秒回滚） ══════════ -->
+        <v:IpConfigView/>
 
         <!-- ══════════ ② WiFi 连接 ══════════ -->
         <Border Classes="card">

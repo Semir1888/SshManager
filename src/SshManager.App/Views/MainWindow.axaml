@@ -22,6 +22,9 @@
     <DataTemplate x:DataType="vm:DockerViewModel">
       <v:DockerView/>
     </DataTemplate>
+    <DataTemplate x:DataType="vm:ComposeViewModel">
+      <v:ComposeView/>
+    </DataTemplate>
     <DataTemplate x:DataType="vm:NetworkViewModel">
       <v:NetworkView/>
     </DataTemplate>
@@ -270,6 +273,14 @@
                   <Path Classes="icon c-dim" Data="{StaticResource IcDocker}" Width="15" Height="15"
                         VerticalAlignment="Center"/>
                   <TextBlock Text="Docker" VerticalAlignment="Center"/>
+                </StackPanel>
+              </ToggleButton>
+              <ToggleButton Classes="tab" IsChecked="{Binding IsTabCompose, Mode=OneWay}"
+                            Command="{Binding SelectTabCommand}" CommandParameter="compose">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Path Classes="icon c-dim" Data="{StaticResource IcGrid}" Width="15" Height="15"
+                        VerticalAlignment="Center"/>
+                  <TextBlock Text="编排" VerticalAlignment="Center"/>
                 </StackPanel>
               </ToggleButton>
               <ToggleButton Classes="tab" IsChecked="{Binding IsTabNetwork, Mode=OneWay}"

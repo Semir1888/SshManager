@@ -1,6 +1,7 @@
 using System.IO;
 using Avalonia;
 using Avalonia.Threading;
+using SshManager.App.Services;
 
 namespace SshManager.App;
 
@@ -16,6 +17,7 @@ internal static class Program
             LogUnhandled(e.Exception);
             e.SetObserved();
         };
+        DragOutStaging.CleanupOld(TimeSpan.FromDays(1));
         try
         {
             BuildAvaloniaApp()
